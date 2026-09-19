@@ -7,132 +7,89 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23CDB4D3'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23E4543F'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="stage">
   <div class="blob b1"></div>
   <div class="blob b2"></div>
+  <div class="blob b3"></div>
 
   <header class="topbar">
-    <div class="logo" aria-label="plec">plec
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke-width="2.6" stroke-linecap="round">
-        <path d="M11 2v4" stroke="#F79A2E"/><path d="M18.5 5.5l-3 2.6" stroke="#E0409A"/><path d="M20 13h-4" stroke="#8B5CF6"/>
-        <path d="M3.5 5.5l3 2.6" stroke="#FACC15"/><path d="M2 13h4" stroke="#3B82F6"/><path d="M16.5 19l-2.2-2.8" stroke="#F65A4C"/>
-      </svg>
-    </div>
+    <!-- To use the official logo file instead: <img src="plec-logo.png" alt="plec" height="40"> -->
+    <svg class="logo" viewBox="0 0 132 48" height="42" role="img" aria-label="plec">
+      <polygon points="24.1,16.9 22.9,2.9 17.8,3.8 21.5,17.3" fill="var(--c-violet)"/><polygon points="20.0,18.1 13.1,9.4 9.4,13.1 18.1,20.0" fill="var(--c-blue)"/><polygon points="17.4,21.3 4.0,17.1 2.9,22.2 16.9,23.8" fill="var(--c-green)"/><polygon points="16.9,24.9 6.1,27.1 7.7,32.0 17.7,27.4" fill="var(--c-yellow)"/><polygon points="18.2,28.1 7.5,37.3 11.3,40.9 20.1,29.9" fill="var(--c-orange)"/><polygon points="21.0,30.5 17.1,40.8 22.2,42.1 23.6,31.1" fill="var(--c-red)"/>
+      <text x="27" y="35" font-family="Plus Jakarta Sans, system-ui, sans-serif" font-weight="800" font-size="36" letter-spacing="-1.6" fill="var(--coral)">plec</text>
+    </svg>
     <div class="center">
       <span class="event">Sofia's 30th</span>
       <span class="live-pill"><i class="dot"></i>Live from iMessage</span>
     </div>
     <div class="status">
       <div class="status-text"><b id="status-main">Listening quietly</b><span id="status-sub">Spoke 0× · stayed quiet 0×</span></div>
-      <div class="orb live" style="--s:40px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>
+      <div class="orb live" style="--s:44px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>
     </div>
   </header>
 
-  <main class="main">
-    <!-- Phone -->
-    <section class="phone-col">
-      <div class="phone-fit" id="phone-fit">
-        <div class="phone">
-          <div class="screen">
-            <div class="sky-top"></div>
-            <div class="island"></div>
-            <div class="statusbar">
-              <span id="clock">9:41</span>
-              <span class="icons">
-                <svg width="18" height="12" viewBox="0 0 18 12" fill="#111"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
-                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round"><path d="M1.5 4.5a9.5 9.5 0 0 1 13 0"/><path d="M4 7.3a6 6 0 0 1 8 0"/><circle cx="8" cy="10" r="1" fill="#111"/></svg>
-                <svg width="27" height="13" viewBox="0 0 27 13" fill="none"><rect x=".5" y=".5" width="23" height="12" rx="3.5" stroke="#111" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="#111"/><path d="M25 4.5v4" stroke="#111" stroke-width="1.5" stroke-linecap="round" opacity=".5"/></svg>
-              </span>
-            </div>
-            <div class="chat-head">
-              <span class="round-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></span>
-              <div class="stack" id="head-stack"></div>
-              <div class="head-text"><b>Sofia's 30th 🎉</b><span><i class="dot"></i>PLEC is here · 4 friends</span></div>
-              <span class="round-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></span>
-            </div>
-            <div class="chat" id="chat">
-              <div class="today">Today</div>
-              <div id="msgs"></div>
-              <div id="typing"></div>
-            </div>
-            <div class="foot">
-              <div class="composer">
-                <div class="ph">Ask me anything…</div>
-                <div class="tools">
-                  <span class="round-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
-                  <span class="round-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="4"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 9"/></svg></span>
-                  <span class="round-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
-                  <span class="send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4 18-7z"/></svg></span>
-                </div>
-              </div>
-              <div class="home"></div>
-            </div>
-          </div>
-        </div>
+  <main class="brain">
+    <!-- Hero -->
+    <section class="hero">
+      <svg class="hills" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 110 C150 50 300 60 450 105 S750 165 900 95 S1100 55 1200 85 V200 H0Z" fill="#E9C9DC" opacity=".55"/>
+        <path d="M0 145 C200 95 360 120 520 148 S850 105 1000 138 S1150 158 1200 138 V200 H0Z" fill="#CFE3BF" opacity=".7"/>
+        <path d="M0 176 C250 150 450 166 650 178 S1000 158 1200 172 V200 H0Z" fill="#F1F2DC" opacity=".95"/>
+      </svg>
+      <div class="hero-left">
+        <div class="label">Planning for</div>
+        <div class="hero-title" id="hero-title">Sofia's surprise 30th</div>
+        <div class="surprise" id="surprise">🤫 Sofia isn't in the chat</div>
+      </div>
+      <div class="hero-count">
+        <div class="label">Guests</div>
+        <div class="big num" id="guests">—</div>
+        <div class="trend" id="trend"></div>
+      </div>
+      <div class="orb live hero-orb" style="--s:120px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>
+      <div class="chips">
+        <div class="chip"><span class="ic" style="color:var(--c-orange)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16 15h2"/></svg></span><div><small>Budget</small><b id="chip-budget">—</b></div></div>
+        <div class="chip"><span class="ic" style="color:var(--c-violet)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span><div><small>Date</small><b id="chip-date">—</b></div></div>
+        <div class="chip"><span class="ic" style="color:var(--coral)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span><div><small>Venue</small><b id="chip-venue">—</b></div></div>
       </div>
     </section>
 
-    <!-- Brain -->
-    <section class="brain">
-      <div class="brain-main" id="brain-main">
-        <div class="hero">
-          <svg class="hills" viewBox="0 0 1200 200" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M0 110 C150 50 300 60 450 105 S750 165 900 95 S1100 55 1200 85 V200 H0Z" fill="#BBB8E6" opacity=".45"/>
-            <path d="M0 145 C200 95 360 120 520 148 S850 105 1000 138 S1150 158 1200 138 V200 H0Z" fill="#CBDBB4" opacity=".65"/>
-            <path d="M0 176 C250 150 450 166 650 178 S1000 158 1200 172 V200 H0Z" fill="#E6EDD5" opacity=".9"/>
-          </svg>
-          <div class="hero-top">
-            <div>
-              <div class="label">Planning for</div>
-              <div class="hero-title">Sofia's surprise 30th</div>
-              <div class="surprise">🤫 Sofia isn't in the chat</div>
-            </div>
-          </div>
-          <div class="hero-count">
-            <div class="label">Guests</div>
-            <div class="big num" id="guests">—</div>
-            <div class="trend" id="trend"></div>
-          </div>
-          <div class="orb live" style="--s:110px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>
-          <div class="chips">
-            <div class="chip"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16 15h2"/></svg></span><div><small>Budget</small><b id="chip-budget">—</b></div></div>
-            <div class="chip"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span><div><small>Date</small><b id="chip-date">—</b></div></div>
-            <div class="chip"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span><div><small>Venue</small><b id="chip-venue">—</b></div></div>
-          </div>
-        </div>
-
-        <div class="insight">
-          <div class="txt" id="insight"><small>✦ Quiet insight</small><b>Listening to the group…</b></div>
-          <div class="orb live" style="--s:56px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>
-        </div>
-
-        <div class="split">
-          <div class="card">
-            <div class="card-head"><span class="card-title">Who's in</span><span class="card-sub" id="whos-sub">dates × people</span></div>
-            <div id="whos"></div>
-          </div>
-          <div class="card">
-            <div class="card-head"><span class="card-title">Votes</span><span class="card-sub" id="votes-sub">no options yet</span></div>
-            <div id="votes" class="bars"><div class="empty">PLEC hasn't suggested venues yet</div></div>
-          </div>
-        </div>
-
-        <div class="booking" id="booking"></div>
-      </div>
-
-      <aside class="card rail">
-        <div class="card-head"><span class="card-title">Activity</span><span class="card-sub">PLEC's decisions</span></div>
-        <div class="rail-status">
-          <div class="orb live" style="--s:40px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>
-          <div><b id="counter">Spoke 0× · stayed quiet 0×</b><span>knows when not to talk</span></div>
-        </div>
-        <div class="feed" id="feed"></div>
-      </aside>
+    <!-- Latest in the chat -->
+    <section class="latest card">
+      <span class="latest-label">Latest in the chat</span>
+      <div class="latest-msg" id="latest"><span class="latest-empty">Waiting for the group to start talking…</span></div>
     </section>
+
+    <!-- Quiet insight -->
+    <section class="insight">
+      <div class="txt" id="insight"><small>✦ Quiet insight</small><b>Listening to the group…</b></div>
+      <div class="orb live" style="--s:52px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>
+    </section>
+
+    <section class="card whos">
+      <div class="card-head"><span class="card-title">Who's in</span><span class="card-sub" id="whos-sub">dates × people</span></div>
+      <div id="whos"></div>
+    </section>
+
+    <section class="card votes-card">
+      <div class="card-head"><span class="card-title">Votes</span><span class="card-sub" id="votes-sub">no options yet</span></div>
+      <div id="votes" class="bars"></div>
+    </section>
+
+    <section class="booking" id="booking"></section>
+
+    <aside class="card rail">
+      <div class="card-head"><span class="card-title">Activity</span><span class="card-sub">PLEC's decisions</span></div>
+      <div class="rail-status">
+        <div class="orb live" style="--s:40px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>
+        <div><b id="counter">Spoke 0× · stayed quiet 0×</b><span>knows when not to talk</span></div>
+      </div>
+      <div class="feed" id="feed"></div>
+    </aside>
   </main>
 
   <div class="mode" id="mode">MOCK</div>
