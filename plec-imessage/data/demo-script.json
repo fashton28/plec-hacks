@@ -1,0 +1,53 @@
+{
+  "title": "Sofia's surprise 30th",
+  "chatId": "demo-sofia-30",
+  "people": { "Tony": "+15550100001", "Dani": "+15550100002", "Marcus": "+15550100003", "Priya": "+15550100004" },
+  "notes": "pause=true ends a burst (replay waits for the pipeline). {{vote:<venueId>}} becomes that venue's number in the agent's shortlist; {{vote:other}} is the first other option.",
+  "steps": [
+    { "from": "Tony", "text": "ok team. sofia's 30th. SURPRISE party. I'm organizing, added plec to help us book a place", "expect": "intro" },
+    { "from": "Dani", "text": "OMG yes finally" },
+    { "from": "Marcus", "text": "she's gonna cry lol" },
+    { "from": "Priya", "text": "wait does she suspect anything" },
+    { "from": "Tony", "text": "nope. she thinks we're doing brunch lmao", "pause": true, "expect": "silent" },
+
+    { "from": "Dani", "text": "ok when r we thinking. her bday is the 20th right" },
+    { "from": "Tony", "text": "yeah the 20th. thinking the weekend before or after? 17th/18th or 24th/25th" },
+    { "from": "Dani", "text": "ugh i cant do oct 17, my sisters wedding rehersal 😭" },
+    { "from": "Marcus", "text": "18th im out of town till sunday night" },
+    { "from": "Tony", "text": "24th is my cousins wedding so not that one for me", "pause": true, "expect": "silent" },
+
+    { "from": "Priya", "text": "ok more important question what are we wearing" },
+    { "from": "Dani", "text": "90s theme!!!" },
+    { "from": "Marcus", "text": "absolutely not" },
+    { "from": "Priya", "text": "all black? classy" },
+    { "from": "Dani", "text": "boring but fine 🙄", "pause": true, "expect": "silent" },
+
+    { "from": "Tony", "text": "prob like 40-45 ppl btw, she knows everyone" },
+    { "from": "Marcus", "text": "can we keep it under like $40 a head, im broke after vegas" },
+    { "from": "Priya", "text": "also my grandma is coming and she cant do stairs so nothing up a bunch of steps pls" },
+    { "from": "Dani", "text": "and somewhere we can actually dance at!! not a sit down dinner", "pause": true, "expect": "silent" },
+
+    { "from": "Marcus", "text": "saturday is better, ppl can go out after" },
+    { "from": "Priya", "text": "sunday is better for my fam, saturdays are chaos for them" },
+    { "from": "Marcus", "text": "saturday!!" },
+    { "from": "Priya", "text": "sunday!!" },
+    { "from": "Dani", "text": "you two are exhausting 😂" },
+    { "from": "Marcus", "text": "ok this is going nowhere. plec help??", "pause": true, "expect": "summary by name + the 25th + 3 numbered options" },
+
+    { "from": "Dani", "text": "{{vote:kiln-loft-fishtown}}" },
+    { "from": "Priya", "text": "{{vote:kiln-loft-fishtown}}!!" },
+    { "from": "Marcus", "text": "{{vote:other}} or {{vote:kiln-loft-fishtown}}" },
+    { "from": "Tony", "text": "{{vote:kiln-loft-fishtown}}", "pause": true, "expect": "tally + booking summary, asks Tony to confirm" },
+
+    { "from": "Tony", "text": "yes book it", "pause": true, "expect": "booked by server code" },
+
+    { "from": "Dani", "text": "AHHH its happening 🎉" },
+    { "from": "Marcus", "text": "i'll handle the playlist obviously", "pause": true, "expect": "silent" },
+
+    { "from": "Priya", "text": "update: my cousins are coming, +8", "pause": true, "expect": "over-capacity alert + proposed switch" },
+
+    { "from": "Tony", "text": "switch it", "pause": true, "expect": "switched by server code" },
+
+    { "from": "Tony", "text": "plec what's the plan", "pause": true, "expect": "crisp recap" }
+  ]
+}
