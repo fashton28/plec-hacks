@@ -46,3 +46,9 @@ None so far.
   - `corner-room-southphilly` ($650) and `osteria-private-room-passyunk` ($850) are the budget picks.
 - `sandbox`: the same tools against PLEC's hosted catalogue (`src/tools/sandboxClient.js`, copied from `agent/plec.js`). Bookings there are real sandbox bookings with a Checkout link: the agent sends the link and says it confirms on payment. It needs an organizer email, taken from chat or `ORGANIZER_EMAIL`. Accessibility is inferred from amenities and description text, otherwise "check with the venue".
 - The mock pricing field is `includedHours` + `extraHour` (a generalization of the prompt's `perHourAfter4`).
+
+## Group calendar itinerary (src/tools/calendar.js)
+
+After a booking, PLEC offers calendar invites. Anyone who replies with an email is opted in (the email is kept only on the participant in `data/state.json`, redacted from the transcript and the stage). Once everyone is in, or the organizer says "plec send invites", PLEC proposes the itinerary. On the organizer's yes, events go onto the organizer's Google Calendar with only the relevant people invited. On a surprise, the guest of honor is never invited. When the booking changes, the same events get patched automatically (matched by `extendedProperties.private.plecBookingId`, so no duplicates). A cancellation deletes them.
+
+Google setup (optional): create a Cloud project and enable the Calendar API. Set the OAuth consent screen to Testing and add the organizer as a test user. Create a Web OAuth client with redirect `https://developers.google.com/oauthplayground`. In the Playground, use your own credentials to authorize `https://www.googleapis.com/auth/calendar.events` and exchange for a refresh token. Then fill `GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN` in `.env`. Without them, PLEC sends "add to calendar" links (`/cal/...`) and an `.ics` (`/ics/PB-1001.ics?k=...`) instead. Set `PUBLIC_BASE_URL` to your tunnel so phones can open them.

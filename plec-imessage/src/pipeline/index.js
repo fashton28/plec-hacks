@@ -52,10 +52,10 @@ export async function handleInbound(messages) {
   for (const raw of messages) {
     const result = ingest(raw);
     if (!result) continue;
-    const { chat, message, firstInChat } = result;
+    const { chat, message, firstInChat, emailShared } = result;
     if (firstInChat && !chat.introduced) await introduce(chat);
 
-    const cmd = await handleCommand(chat, message, { respond: (c, o) => safeRespond(c, o, true), reExtract });
+    const cmd = await handleCommand(chat, message, { respond: (c, o) => safeRespond(c, o, true), reExtract, emailShared });
     if (cmd === 'handled') {
       if (chat.optedOut) chat.transcript = chat.transcript.filter((m) => m.id !== message.id); // opted out: don't keep what we didn't need to read
       save();

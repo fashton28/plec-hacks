@@ -16,7 +16,7 @@
  * @property {number} timestamp
  * @property {'live'|'screenshot'|'simulator'|'agent'} source
  *
- * @typedef {{ phone: Phone, name?: string, isOrganizer?: boolean }} Participant
+ * @typedef {{ phone: Phone, name?: string, isOrganizer?: boolean, email?: string }} Participant  email: calendar opt-in only
  * @typedef {{ person: string, constraint: string, sourceMessageId?: string }} PersonConstraint
  *
  * @typedef {object} ChatPlan
@@ -41,7 +41,7 @@
  *
  * @typedef {object} PendingAction
  * @property {string} id
- * @property {'create_booking'|'modify_booking'|'cancel_booking'} kind
+ * @property {'create_booking'|'modify_booking'|'cancel_booking'|'calendar_create'} kind
  * @property {object} payload
  * @property {string} summaryText             exactly what was shown to the organizer
  * @property {number} requestedAt
@@ -79,5 +79,15 @@
  * @property {boolean} optedOut
  * @property {string[]} seenIds              last 1000 inbound ids (dedupe)
  * @property {{ at: number, speak: boolean, reason: string, intent?: string }[]} decisions  decision log
+ * @property {CalendarState} [calendar]
+ *
+ * @typedef {object} CalendarState          group itinerary on the organizer's Google Calendar (tools/calendar.js)
+ * @property {string} bookingId
+ * @property {'offered'|'proposed'|'sent'|'updated'|'cancelled'} [status]
+ * @property {number} [offeredAt]            emails count as opt-in for 48h after this
+ * @property {string} icsToken               gates the /ics and /cal links
+ * @property {{ volunteers?: string[], decoyEmail?: string, decoyTitle?: string }} options
+ * @property {object[]} items                itinerary events (with attendee emails; never emitted)
+ * @property {boolean} [linksOnly]           Google not configured / failed: links + .ics were sent
  */
 export {};

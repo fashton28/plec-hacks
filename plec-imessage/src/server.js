@@ -1,4 +1,4 @@
-/** Tiny zero-dependency router on node:http, plus JSON, HTML and SSE helpers. */
+/** Tiny zero-dependency router on node:http, plus JSON, HTML and SSE helpers. A path ending in * matches that prefix. */
 import { createServer } from 'node:http';
 import { log } from './log.js';
 
@@ -21,7 +21,8 @@ export function createRouter() {
 
 async function handle(routes, req, res) {
   const url = new URL(req.url, 'http://localhost');
-  const route = routes.find((r) => r.method === req.method && r.path === url.pathname);
+  const matches = (p) => p === url.pathname || (p.endsWith('*') && url.pathname.startsWith(p.slice(0, -1)));
+  const route = routes.find((r) => r.method === req.method && matches(r.path));
   if (!route) return sendJson(res, 404, { error: 'not_found' });
   let body = null;
   try {
