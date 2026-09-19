@@ -1,9 +1,10 @@
 /** Offline tests for packages, calendar links, the playlist and the invitation page (agent/extras.js, agent/eventpage.js, agent/origin.js). */
 
 import test from 'node:test';
+import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import { EXTRA_NAMES, afterBooking, noteBooking, runExtra } from '../agent/extras.js';
-import { _stores, getCalendarLink, getPage, googleCalendarUrl, icsFile, renderPage, savePage, spotifySearchUrl } from '../agent/eventpage.js';
+import { _stores, addRsvp, getCalendarLink, getPage, googleCalendarUrl, icsFile, renderPage, savePage, spotifySearchUrl } from '../agent/eventpage.js';
 import { _forget, noteRequestOrigin, publicOrigin } from '../agent/origin.js';
 
 const EVENT = { title: "Maya's 30th", date: '2026-10-10', startTime: '18:00', endTime: '23:00', location: 'The Foundry at Fishtown, 1400 N Front St', details: 'BK-1001' };
@@ -45,8 +46,8 @@ function fakeBrain({ refuseBook = null, failBook = [] } = {}) {
 const newCtx = (brain, typed = '') => ({ state: { seen: {}, typed: { '': typed } }, turn: { chatId: 't', writes: [] }, runTool: brain.runTool });
 const plan = (ctx, extra = {}) => runExtra('plan_package', { city: 'Philadelphia', ...SLOT, services: ['dj', 'caterer'], ...extra }, ctx);
 
-test('the five extra tools are registered', () => {
-  assert.deepEqual([...EXTRA_NAMES].sort(), ['book_package', 'calendar_invite', 'make_invitation', 'make_playlist', 'plan_package']);
+test('the extra tools are registered', () => {
+  assert.deepEqual([...EXTRA_NAMES].sort(), ['book_package', 'calendar_invite', 'get_rsvps', 'make_invitation', 'make_playlist', 'plan_package']);
 });
 
 test('plan_package quotes a venue and one provider per service for the same slot, and adds them up', async () => {
@@ -180,4 +181,30 @@ test('the public origin is only learned from hosts we trust', () => {
   process.env.PUBLIC_URL = 'https://plec.example.com/';
   assert.equal(publicOrigin(), 'https://plec.example.com');
   delete process.env.PUBLIC_URL;
+});
+
+test('RSVPs: a name answers once, bad input is refused, and the host can ask the agent who is coming', async () => {
+  const page = savePage(null, { title: 'Party' });
+  assert.deepEqual(addRsvp(page.id, { name: '  Ana   Gomez ', going: 'yes' }, 'ip1').rsvps, { yes: ['Ana Gomez'], maybe: [], no: [] });
+  addRsvp(page.id, { name: 'Ben', going: 'maybe' }, 'ip1');
+  assert.deepEqual(addRsvp(page.id, { name: 'ana gomez', going: 'no' }, 'ip1').rsvps, { yes: [], maybe: ['Ben'], no: ['ana gomez'] }, 'answering again changes the answer');
+  assert.equal(addRsvp(page.id, { name: 'A', going: 'yes' }, 'ip1').status, 400);
+  assert.equal(addRsvp(page.id, { name: 'Cara', going: 'definitely' }, 'ip1').status, 400);
+  assert.equal(addRsvp('missing-id', { name: 'Cara', going: 'yes' }, 'ip1').status, 404);
+  for (let i = 0; i < 25; i += 1) addRsvp(page.id, { name: `Guest ${i}`, going: 'yes' }, 'flood');
+  assert.equal(addRsvp(page.id, { name: 'One More', going: 'yes' }, 'flood').status, 429);
+  const html = renderPage(getPage(page.id), 'https://x.trycloudflare.com');
+  assert.match(html, /id="rsvp-form"/);
+  // The page's script lives inside a template string, where one lost backslash turns a regex into a comment. Compile it.
+  const inline = /<script>([\s\S]*?)<\/script>/.exec(html)[1];
+  assert.doesNotThrow(() => new vm.Script(inline), 'the invitation page script must parse');
+  assert.ok(!html.includes('<script>alert'), 'still escaped');
+  addRsvp(page.id, { name: '<img src=x onerror=alert(1)>', going: 'yes' }, 'ip2');
+  assert.ok(!renderPage(getPage(page.id), 'https://x').includes('<img src=x'), 'a hostile name never becomes markup');
+
+  const ctx = { state: { seen: {}, typed: {}, pageId: page.id }, turn: { chatId: 't', writes: [] }, runTool: async () => ({}) };
+  const asked = await runExtra('get_rsvps', {}, ctx);
+  assert.equal(asked.counts.maybe, 1);
+  assert.ok(asked.coming.includes('Guest 0'));
+  assert.equal((await runExtra('get_rsvps', {}, { ...ctx, state: { seen: {}, typed: {} } })).error, 'no_invitation');
 });

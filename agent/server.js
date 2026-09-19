@@ -23,8 +23,11 @@ import { startIMessage } from './imessage.js';
 import { clampText } from './guards.js';
 import { signup } from './signup.js';
 import { openEventStream, stage } from './stage.js';
-import { getCalendarLink, getPage, googleCalendarUrl, icsFile, pageEvent, renderPage } from './eventpage.js';
+import { addRsvp, getCalendarLink, getPage, googleCalendarUrl, icsFile, pageEvent, renderPage } from './eventpage.js';
 import { noteRequestOrigin, publicOrigin } from './origin.js';
+import { authorizeUrl, exchangeCode, redirectUri, spotifyConfigured, spotifyReady } from './spotify.js';
+import { saveDotEnvValue } from './env.js';
+import { randomBytes } from 'node:crypto';
 import { getSession, resetSession, withSessionLock } from './session.js';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -51,9 +54,11 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true });
     if (req.method === 'GET' && url.pathname === '/events') return openEventStream(req, res);
     if (req.method === 'GET' && /^\/[ec]\//.test(url.pathname)) return serveEventLink(url.pathname, res);
+    if (req.method === 'GET' && url.pathname.startsWith('/spotify/')) return await handleSpotify(req, url, res);
     if (req.method === 'POST' && url.pathname === '/agent/messages') return await handleMessage(req, res);
     if (req.method === 'POST' && url.pathname === '/agent/reset') return await handleReset(req, res);
     if (req.method === 'POST' && url.pathname === '/imessage/signup') return await handleSignup(req, res);
+    if (req.method === 'POST' && /^\/e\/[A-Za-z0-9_-]{6,16}\/rsvp$/.test(url.pathname)) return await handleRsvp(req, url, res);
     if ((req.method === 'GET' || req.method === 'HEAD') && MOVED[url.pathname]) {
       res.writeHead(308, { Location: MOVED[url.pathname] });
       return res.end();
@@ -105,6 +110,15 @@ async function handleReset(req, res) {
   return json(res, 200, { ok: true });
 }
 
+/** A guest answers an invitation page. */
+async function handleRsvp(req, url, res) {
+  const body = await readJson(req);
+  if (!body) return json(res, 400, { error: 'bad_json', message: 'Send a JSON body: { "name": "...", "going": "yes" }' });
+  const forwarded = String(req.headers['cf-connecting-ip'] ?? req.headers['x-forwarded-for'] ?? '').split(',')[0].trim();
+  const result = addRsvp(url.pathname.split('/')[2], body, forwarded || req.socket.remoteAddress || 'unknown');
+  return result.ok ? json(res, 200, { rsvps: result.rsvps }) : json(res, result.status, { error: 'rsvp_refused', message: result.message });
+}
+
 /** Self-serve iMessage sign-up (agent/signup.js). Behind a tunnel the caller's address is in a forwarding header. */
 async function handleSignup(req, res) {
   const body = await readJson(req);
@@ -112,6 +126,40 @@ async function handleSignup(req, res) {
   const forwarded = String(req.headers['cf-connecting-ip'] ?? req.headers['x-forwarded-for'] ?? '').split(',')[0].trim();
   const result = await signup(body, { ip: forwarded || req.socket.remoteAddress || 'unknown' });
   return json(res, result.status, result.body);
+}
+
+/**
+ * Connect a Spotify account, once: /spotify/login sends the owner to Spotify, /spotify/callback stores the refresh
+ * token in .env. Both answer only on the loopback address, so nobody reaching the agent through the tunnel can
+ * connect their own account or read anything. Spotify itself only allows plain http for 127.0.0.1.
+ */
+let spotifyState = null;
+async function handleSpotify(req, url, res) {
+  const page = (status, title, body) => { res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(`<!doctype html><meta charset="utf-8"><title>${title}</title><body style="font:16px/1.5 system-ui;max-width:34rem;margin:4rem auto;padding:0 1rem"><h1 style="font-weight:500">${title}</h1><p>${body}</p>`); };
+  const host = String(req.headers.host ?? '');
+  if (!/^127\.0\.0\.1(:\d+)?$/.test(host) || req.headers['x-forwarded-for'] || req.headers['cf-connecting-ip']) {
+    return page(403, 'Open this on the laptop running the agent', `Use <code>http://127.0.0.1:${PORT}/spotify/login</code> in a browser on that machine.`);
+  }
+  if (!spotifyConfigured()) return page(400, 'Spotify app details missing', 'Put SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET in .env, restart the agent, and come back here.');
+  if (url.pathname === '/spotify/login') {
+    spotifyState = randomBytes(12).toString('hex');
+    res.writeHead(302, { Location: authorizeUrl(PORT, spotifyState), 'Cache-Control': 'no-store' });
+    return res.end();
+  }
+  if (url.pathname === '/spotify/callback') {
+    if (url.searchParams.get('error')) return page(400, 'Spotify login was cancelled', 'Nothing changed. Open /spotify/login to try again.');
+    if (!spotifyState || url.searchParams.get('state') !== spotifyState) return page(400, 'That login link is stale', 'Open /spotify/login again.');
+    spotifyState = null;
+    try {
+      const refreshToken = await exchangeCode(url.searchParams.get('code') ?? '', PORT);
+      process.env.SPOTIFY_REFRESH_TOKEN = refreshToken;
+      saveDotEnvValue(join(ROOT, '.env'), 'SPOTIFY_REFRESH_TOKEN', refreshToken);
+      return page(200, 'Spotify is connected', 'PLEC can now create real playlists in this account. It is saved in .env, so it survives a restart. You can close this tab.');
+    } catch (err) {
+      return page(502, 'Spotify said no', String(err?.message ?? err).replace(/[<>&]/g, ''));
+    }
+  }
+  return page(404, 'Not found', `Spotify is ${spotifyReady() ? 'connected' : 'not connected yet'}. The redirect URI to register is <code>${redirectUri(PORT)}</code>.`);
 }
 
 /** Invitation pages (/e/<id>, /e/<id>.ics) and one-person calendar links (/c/<id>, /c/<id>.ics). See agent/eventpage.js. */
@@ -222,5 +270,6 @@ server.listen(PORT, () => {
   console.log(`Chat page:   http://localhost:${PORT}/`);
   console.log(`Big screen:  http://localhost:${PORT}/stage.html`);
   console.log(`Sandbox:     ${process.env.PLEC_SANDBOX_URL || 'https://api.plec.ai/hackathon/sandbox'}  key ${process.env.PLEC_SANDBOX_KEY ? 'set' : 'MISSING (copy it from https://plec.ai/hack/dashboard into .env)'}`);
+  console.log(`Spotify:     ${spotifyReady() ? 'connected, real playlists on' : spotifyConfigured() ? `app set, not logged in: open http://127.0.0.1:${PORT}/spotify/login` : 'off (track links instead). See README'}`);
   startIMessage();
 });

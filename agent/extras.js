@@ -11,9 +11,10 @@
 
 import { findEmails } from './guards.js';
 import { formatCents } from './parts.js';
-import { createCalendarLink, savePage, getPage, pageEvent, spotifySearchUrl, dateWords, timeWords } from './eventpage.js';
+import { createCalendarLink, savePage, getPage, rsvpSummary, spotifySearchUrl, dateWords, timeWords } from './eventpage.js';
 import { publicOrigin } from './origin.js';
 import { stage } from './stage.js';
+import { createPlaylist, spotifyReady } from './spotify.js';
 
 export const EXTRA_WRITES = new Set(['book_package']);
 
@@ -53,7 +54,7 @@ export const extraTools = [
     type: 'function',
     function: {
       name: 'make_playlist',
-      description: 'Put together a playlist for the event from the vibe the user described. You choose 12 to 18 real, well known tracks that fit; each one becomes a link that opens it in Spotify, on the event page. Use it when asked for music or a playlist, and as part of a whole-event package.',
+      description: 'Put together a playlist for the event from the vibe the user described. You choose 12 to 18 real, well known tracks that fit. When a Spotify account is connected this creates a real Spotify playlist from the tracks Spotify can find; otherwise each track becomes a link that opens it in Spotify. The result tells you which one happened: say only that. Use it when asked for music or a playlist, and as part of a whole-event package.',
       parameters: {
         type: 'object',
         properties: {
@@ -86,6 +87,14 @@ export const extraTools = [
       name: 'calendar_invite',
       description: 'A Google Calendar link for the booked event with everyone\'s email already on the invite. The user opens it and presses Save, and Google emails the invitations from their own account. Use it when they ask to invite people or share more emails. A link is already sent automatically right after a booking.',
       parameters: { type: 'object', properties: { emails: { type: 'array', items: { type: 'string' }, description: 'Emails the user typed in this conversation' } } },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_rsvps',
+      description: 'Who has answered the invitation page so far: names of guests who said yes, maybe and no. Use it when the host asks who is coming or how many.',
+      parameters: { type: 'object', properties: {} },
     },
   },
 ];
@@ -206,16 +215,35 @@ async function bookPackage(args, { state, turn, runTool }) {
   return { booked, failed, next: 'Give every reference. pending_payment items are held, not confirmed, until paid: their payment links are sent with your reply. requested items wait for the host. Say plainly if anything failed. Then call make_playlist and make_invitation if this is a whole-event package.' };
 }
 
-function makePlaylist(args, { state, turn }) {
-  const tracks = (Array.isArray(args.tracks) ? args.tracks : []).map((t) => ({ title: clean(t?.title, 90), artist: clean(t?.artist, 90) })).filter((t) => t.title && t.artist).slice(0, 20);
-  if (tracks.length < 3) return refusal('tracks_required', 'Pass at least a handful of tracks, each with a title and an artist.');
-  const playlist = { vibe: clean(args.vibe, 120), tracks };
+async function makePlaylist(args, { state, turn }, spotify = { ready: spotifyReady, create: createPlaylist }) {
+  const proposed = (Array.isArray(args.tracks) ? args.tracks : []).map((t) => ({ title: clean(t?.title, 90), artist: clean(t?.artist, 90) })).filter((t) => t.title && t.artist).slice(0, 20);
+  if (proposed.length < 3) return refusal('tracks_required', 'Pass at least a handful of tracks, each with a title and an artist.');
+  const vibe = clean(args.vibe, 120);
+  const name = getPage(state.pageId)?.title && getPage(state.pageId).title !== 'The playlist' ? `${getPage(state.pageId).title} playlist` : `${vibe || 'Party'} playlist`;
+
+  // Connected to Spotify: a real playlist, holding only the tracks Spotify itself found. Otherwise, or if Spotify
+  // fails, each proposed track is a link that opens it in Spotify. Either way the result says which one it is.
+  let real = null, problem = null;
+  if (spotify.ready()) {
+    try {
+      real = await spotify.create({ name, description: `${vibe}. Put together by PLEC Concierge.`, tracks: proposed });
+    } catch (err) {
+      problem = err?.message ?? String(err);
+      console.warn('[spotify] falling back to track links:', problem);
+    }
+  }
+  const tracks = real ? real.tracks : proposed;
+  const playlist = { vibe, tracks, ...(real ? { spotifyId: real.id, spotifyUrl: real.url } : {}) };
   const page = savePage(state.pageId, { title: getPage(state.pageId)?.title ?? 'The playlist', playlist });
   state.pageId = page.id;
-  const url = `${publicOrigin()}/e/${page.id}#playlist`;
-  turn.links = [...(turn.links ?? []).filter((l) => l.label !== 'Open the playlist'), { label: 'Open the playlist', url }];
-  stage.note(turn.chatId, 'spoke', `Made a playlist: ${tracks.length} tracks`, playlist.vibe);
-  return { url, tracks: tracks.length, firstTrack: spotifySearchUrl(tracks[0].title, tracks[0].artist), note: 'Each track opens in Spotify from the page. Name three or four of them in your reply, not all.' };
+  const url = real ? real.url : `${publicOrigin()}/e/${page.id}#playlist`;
+  const label = real ? 'Open the playlist on Spotify' : 'Open the playlist';
+  turn.links = [...(turn.links ?? []).filter((l) => !l.label.startsWith('Open the playlist')), { label, url }];
+  stage.note(turn.chatId, 'spoke', real ? `Made a Spotify playlist: ${tracks.length} tracks` : `Made a playlist: ${tracks.length} tracks`, vibe);
+  if (real) {
+    return { url, realSpotifyPlaylist: true, tracks: tracks.map((t) => `${t.title}, ${t.artist}`), notOnSpotify: real.missing.map((t) => `${t.title}, ${t.artist}`), note: 'This is a real playlist on Spotify; its link is attached as a button. Name three or four of its tracks, only from the tracks list above.' };
+  }
+  return { url, realSpotifyPlaylist: false, tracks: tracks.length, firstTrack: spotifySearchUrl(tracks[0].title, tracks[0].artist), ...(problem ? { spotifyProblem: problem } : {}), note: 'This is a track list where each song opens in Spotify, NOT a playlist in a Spotify account, so do not call it one. Name three or four of the tracks.' };
 }
 
 async function makeInvitation(args, { state, turn, runTool }) {
@@ -245,8 +273,14 @@ export async function runExtra(name, args, ctx) {
   try {
     if (name === 'plan_package') return await planPackage(args ?? {}, ctx);
     if (name === 'book_package') return await bookPackage(args ?? {}, ctx);
-    if (name === 'make_playlist') return makePlaylist(args ?? {}, ctx);
+    if (name === 'make_playlist') return await makePlaylist(args ?? {}, ctx, ctx.spotify);
     if (name === 'make_invitation') return await makeInvitation(args ?? {}, ctx);
+    if (name === 'get_rsvps') {
+      const page = getPage(ctx.state.pageId);
+      if (!page) return refusal('no_invitation', 'There is no invitation page yet, so nobody could have answered. Offer to make one.');
+      const r = rsvpSummary(page);
+      return { coming: r.yes, maybe: r.maybe, notComing: r.no, counts: { coming: r.yes.length, maybe: r.maybe.length, notComing: r.no.length }, invitationUrl: `${publicOrigin()}/e/${page.id}` };
+    }
     if (name === 'calendar_invite') {
       const link = calendarLink(ctx.state, ctx.turn, Array.isArray(args?.emails) ? args.emails : []);
       return link ? { ...link, note: 'The user opens the link and presses Save; Google then emails the invitations from their account. Only emails typed in this conversation are included.' } : refusal('nothing_booked', 'Nothing is booked yet, so there is no event to put on a calendar.');

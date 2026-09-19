@@ -284,11 +284,28 @@ Every quote, lookup and booking inside them goes through the brain's own `runToo
 | `plan_package` | From a city, date, time window, headcount, wanted services and an optional budget: picks a venue and one provider per service, quotes every one for the same slot, and returns each all-in total plus the combined total against the budget. With a budget it takes the cheapest options that work; without one, the best rated. It reports honestly what it could not include. It books nothing. |
 | `book_package` | After a clear yes, makes one ordinary booking per item. If the consent gate refuses the first one, nothing is booked. If the sandbox refuses one item, the rest still book and the failure is reported. |
 | `calendar_invite` | A short link that opens Google Calendar with the event filled in and every email typed in the conversation as an invitee. The guest presses Save and Google sends the invitations from their account. The agent never writes to anybody's calendar. The same link is attached automatically after any booking. |
-| `make_playlist` | The model picks 12 to 18 well known tracks for the vibe. Each becomes a link that opens it in Spotify, on the event page. No Spotify account or API key is involved. |
-| `make_invitation` | A designed, shareable page at `/e/<id>`: venue photo, when and where, the lineup, calendar buttons and the playlist, with preview tags so the link unfurls as a card in iMessage. It also serves `/e/<id>.ics` for Apple Calendar and Outlook. |
+| `make_playlist` | The model picks 12 to 18 well known tracks for the vibe. With a Spotify account connected it creates a real public playlist, holding only the tracks Spotify itself found, and the invitation page embeds the player. Without one, or if Spotify fails, each track becomes a link that opens it in Spotify, and the agent is told not to call that a playlist in an account. |
+| `make_invitation` | A designed, shareable page at `/e/<id>`: venue photo, when and where, calendar buttons, an RSVP form with the guest list, the lineup and the playlist, with preview tags so the link unfurls as a card in iMessage. It also serves `/e/<id>.ics` for Apple Calendar and Outlook. The agent declines to make one before anything is held. |
+| `get_rsvps` | Who answered the invitation page: names under yes, maybe and no. "Who's coming?" |
 
 Privacy rules: the invitation page is public, so it never shows a price, an email, a booking reference or a payment link, and its calendar button invites nobody.
 Only the short `/c/<id>` link sent to the person booking carries the invitees, and only emails someone typed in the conversation are ever included.
+
+RSVPs are public input, so they are bounded: one answer per name (answering again changes it), 300 answers per page, 20 per caller per hour, 40 characters per name, and names are only ever written to the page as text.
+
+### Connecting Spotify, once
+
+1. Create an app at https://developer.spotify.com/dashboard.
+   Add the redirect URI `http://127.0.0.1:8787/spotify/callback` exactly, and tick "Web API".
+   Spotify accepts plain http only for the loopback IP, never for `localhost`.
+2. Put the app's client id and secret in `.env` as `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`, and restart the agent.
+3. On the machine running the agent, open `http://127.0.0.1:8787/spotify/login` and approve.
+   The refresh token is written into `.env` for you, so it survives restarts.
+
+The login routes answer only on the loopback address.
+Anyone reaching the agent through the tunnel gets a 403, so nobody else can connect their account.
+Playlists are created in the connected account, public, so guests can open them.
+While a Spotify app is in development mode, only accounts added under its "User Management" can log in.
 
 Links the agent hands out need a public address.
 `PUBLIC_URL` sets it; without it the server learns it from incoming requests, but only from hosts it trusts (localhost, `trycloudflare.com`, ngrok), because a Host header is attacker-controlled.
@@ -438,6 +455,7 @@ agent/catalogue.js        Listing name lookup and bookability screening from the
 agent/extras.js           Whole-event packages, calendar invites, playlist and invitation tools, built on runTool.
 agent/eventpage.js        Invitation pages, .ics files, Google Calendar and Spotify links.
 agent/origin.js           The public address used in links, learned only from trusted hosts.
+agent/spotify.js          Real Spotify playlists: token refresh, track lookup, playlist creation, login flow.
 agent/stage.js            Narrates turns as display events for the live stage, masks private data, serves GET /events.
 agent/imessage.js         Optional iMessage channel on Photon's Spectrum Cloud.
 agent/imessage-policy.js  Pure iMessage rules: what to ignore, when to speak in a group, which bubbles go out.

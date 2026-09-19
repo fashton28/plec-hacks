@@ -80,6 +80,36 @@ export function savePage(id, patch) {
 }
 export const getPage = (id) => pages.get(id) ?? null;
 
+const ANSWERS = new Set(['yes', 'maybe', 'no']);
+const MAX_RSVPS = 300;
+const rsvpHits = new Map();
+
+/**
+ * One guest's answer on an invitation page. A name answers once: answering again changes the answer.
+ * The page is public, so this is bounded three ways: answers per page, answers per caller per hour, and name length.
+ * @returns {{ ok: true, rsvps: object } | { ok: false, status: number, message: string }}
+ */
+export function addRsvp(id, { name, going }, caller = 'unknown', now = Date.now()) {
+  const page = pages.get(id);
+  if (!page) return { ok: false, status: 404, message: 'That invitation has expired.' };
+  const who = String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (who.length < 2) return { ok: false, status: 400, message: 'Add your name so the host knows who is coming.' };
+  if (!ANSWERS.has(going)) return { ok: false, status: 400, message: 'Pick yes, maybe or no.' };
+  const recent = (rsvpHits.get(caller) ?? []).filter((t) => now - t < 60 * 60 * 1000);
+  if (recent.length >= 20) return { ok: false, status: 429, message: 'That is a lot of answers from one place. Try again later.' };
+  rsvpHits.set(caller, [...recent, now]);
+  if (rsvpHits.size > 5_000) rsvpHits.clear();
+  const others = (page.rsvps ?? []).filter((r) => r.name.toLowerCase() !== who.toLowerCase());
+  if (others.length >= MAX_RSVPS) return { ok: false, status: 409, message: 'This guest list is full.' };
+  page.rsvps = [...others, { name: who, going, at: now }];
+  return { ok: true, rsvps: rsvpSummary(page) };
+}
+
+export function rsvpSummary(page) {
+  const by = (answer) => (page?.rsvps ?? []).filter((r) => r.going === answer).map((r) => r.name);
+  return { yes: by('yes'), maybe: by('maybe'), no: by('no') };
+}
+
 /** The calendar event a page stands for, or null while the page has no time yet. */
 export function pageEvent(page) {
   if (!page?.date || !page.startTime || !page.endTime) return null;
@@ -100,7 +130,8 @@ export function renderPage(page, origin) {
   const blurb = page.message || `You are invited. ${when}${hours ? `, ${hours}` : ''}${venue.name ? ` at ${venue.name}` : ''}.`;
   const confetti = Array.from({ length: 18 }, (_, i) => `<i style="--x:${(i * 53) % 100}%;--d:${(i % 7) * 0.35}s;--c:${ACCENTS[i % ACCENTS.length]};--r:${(i * 47) % 360}deg"></i>`).join('');
   const lineup = (page.lineup ?? []).map((l) => `<li><small>${esc(l.category)}</small><b>${esc(l.name)}</b></li>`).join('');
-  const tracks = (page.playlist?.tracks ?? []).map((t, i) => `<li><a href="${esc(spotifySearchUrl(t.title, t.artist))}" target="_blank" rel="noreferrer"><span class="n">${i + 1}</span><span class="tt"><b>${esc(t.title)}</b><small>${esc(t.artist)}</small></span><span class="go">Play</span></a></li>`).join('');
+  const rsvps = rsvpSummary(page);
+  const tracks = (page.playlist?.tracks ?? []).map((t, i) => `<li><a href="${esc(t.url || spotifySearchUrl(t.title, t.artist))}" target="_blank" rel="noreferrer"><span class="n">${i + 1}</span><span class="tt"><b>${esc(t.title)}</b><small>${esc(t.artist)}</small></span><span class="go">Play</span></a></li>`).join('');
 
   return `<!doctype html>
 <html lang="en">
@@ -148,6 +179,21 @@ ${venue.photoUrl ? `<meta property="og:image" content="${esc(venue.photoUrl)}" /
   .btn:hover { transform: translateY(-2px); }
   .btn.primary { background: var(--brand); color: #fff; box-shadow: 0 14px 28px -14px rgba(225,85,67,.9); }
   .btn.quiet { background: var(--page); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ring); }
+  .rsvp { margin: 0 0 26px; padding: 20px; border-radius: 22px; background: linear-gradient(135deg, hsl(5 90% 97%), hsl(213 60% 96%)); }
+  .rsvp h2 { margin-bottom: 12px; }
+  .rsvp input { width: 100%; font: inherit; font-size: 16px; padding: 12px 14px; border: 0; border-radius: 14px; background: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); outline: none; margin-bottom: 10px; }
+  .rsvp input:focus { box-shadow: inset 0 0 0 2px var(--brand); }
+  .answers { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 8px; }
+  .ans { font: inherit; font-weight: 600; font-size: 14.5px; padding: 12px 8px; border: 0; border-radius: 14px; cursor: pointer; background: #fff; color: var(--ink); box-shadow: inset 0 0 0 1px var(--ring); transition: transform .15s; }
+  .ans:hover { transform: translateY(-2px); } .ans:disabled { opacity: .6; cursor: default; transform: none; }
+  .ans.yes { background: var(--navy); color: #fff; box-shadow: 0 12px 24px -14px rgba(31,58,95,.9); }
+  .rsvp-note { min-height: 1.4em; margin: 10px 0 0; font-size: 14px; color: var(--navy); font-weight: 500; }
+  .going { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .going span { font-size: 13px; padding: 5px 11px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px var(--ring); }
+  .going span.maybe { color: var(--muted); }
+  .going small { width: 100%; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+  .btn.spotify { background: #1db954; color: #fff; margin: 10px 0 14px; box-shadow: 0 14px 28px -16px rgba(29,185,84,.9); }
+  .player { display: block; width: 100%; border: 0; border-radius: 14px; }
   h2 { font-size: 22px; margin: 0 0 12px; }
   .lineup { list-style: none; margin: 0 0 26px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
   .lineup li { padding: 9px 14px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--ring); }
@@ -185,11 +231,52 @@ ${venue.photoUrl ? `<meta property="og:image" content="${esc(venue.photoUrl)}" /
       ${page.guests ? `<div class="fact"><small>Party size</small><b>${esc(page.guests)} guests</b></div>` : ''}
     </section>
     ${event ? `<section class="actions"><a class="btn primary" href="${esc(googleCalendarUrl(event))}" target="_blank" rel="noreferrer">Add to Google Calendar</a><a class="btn quiet" href="/e/${esc(page.id)}.ics">Apple or Outlook</a></section>` : ''}
+    <section class="rsvp" id="rsvp">
+      <h2>Are you coming?</h2>
+      <form id="rsvp-form">
+        <input id="rsvp-name" name="name" maxlength="40" autocomplete="given-name" placeholder="Your name" aria-label="Your name" required />
+        <div class="answers">
+          <button type="submit" value="yes" class="ans yes">I'm in</button>
+          <button type="submit" value="maybe" class="ans">Maybe</button>
+          <button type="submit" value="no" class="ans">Can't go</button>
+        </div>
+      </form>
+      <p class="rsvp-note" id="rsvp-note" role="status"></p>
+      <div class="going" id="going" data-rsvps="${esc(JSON.stringify(rsvps))}"></div>
+    </section>
     ${lineup ? `<h2>The lineup</h2><ul class="lineup">${lineup}</ul>` : ''}
-    ${tracks ? `<h2 id="playlist">The playlist</h2>${page.playlist.vibe ? `<p class="vibe">${esc(page.playlist.vibe)}</p>` : ''}<ol class="tracks">${tracks}</ol>` : ''}
+    ${tracks ? `<h2 id="playlist">The playlist</h2>${page.playlist.vibe ? `<p class="vibe">${esc(page.playlist.vibe)}</p>` : ''}${page.playlist.spotifyId ? `<iframe class="player" title="The playlist on Spotify" src="https://open.spotify.com/embed/playlist/${esc(page.playlist.spotifyId)}?utm_source=plec" height="352" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe><a class="btn spotify" href="${esc(page.playlist.spotifyUrl)}" target="_blank" rel="noreferrer">Open in Spotify</a>` : ''}<ol class="tracks">${tracks}</ol>` : ''}
     <footer>Planned with <a href="/">PLEC Concierge</a></footer>
   </div>
 </main>
+<script>
+(function () {
+  const form = document.getElementById('rsvp-form'), note = document.getElementById('rsvp-note'), going = document.getElementById('going');
+  function draw(r) {
+    going.replaceChildren();
+    const add = (text, cls) => { const el = document.createElement(cls === 'label' ? 'small' : 'span'); if (cls && cls !== 'label') el.className = cls; el.textContent = text; going.appendChild(el); };
+    if (r.yes.length || r.maybe.length) add(r.yes.length + ' coming' + (r.maybe.length ? ', ' + r.maybe.length + ' maybe' : ''), 'label');
+    r.yes.forEach((n) => add(n)); r.maybe.forEach((n) => add(n + '?', 'maybe'));
+  }
+  try { draw(JSON.parse(going.dataset.rsvps)); } catch (e) {}
+  try { const saved = localStorage.getItem('plec.rsvp.name'); if (saved) document.getElementById('rsvp-name').value = saved; } catch (e) {}
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const answer = event.submitter && event.submitter.value, name = document.getElementById('rsvp-name').value;
+    if (!answer) return;
+    const buttons = form.querySelectorAll('button'); buttons.forEach((b) => { b.disabled = true; });
+    try {
+      const res = await fetch(location.pathname.replace(/[/]$/, '') + '/rsvp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, going: answer }) });
+      const body = await res.json();
+      if (!res.ok) { note.textContent = body.message || 'That did not work. Try again.'; return; }
+      try { localStorage.setItem('plec.rsvp.name', name); } catch (e) {}
+      note.textContent = answer === 'yes' ? "You're on the list. See you there!" : answer === 'maybe' ? 'Got it, marked as a maybe.' : 'Thanks for letting the host know.';
+      draw(body.rsvps);
+    } catch (e) { note.textContent = 'Could not reach the server. Try again.'; }
+    finally { buttons.forEach((b) => { b.disabled = false; }); }
+  });
+})();
+</script>
 </body>
 </html>`;
 }

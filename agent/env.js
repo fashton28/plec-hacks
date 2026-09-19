@@ -3,7 +3,7 @@
  * optional quotes. Never overrides a real env var.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 export function loadDotEnv(path) {
   if (!existsSync(path)) return;
@@ -13,4 +13,13 @@ export function loadDotEnv(path) {
     const value = match[2].replace(/^(['"])(.*)\1$/, '$2');
     if (process.env[match[1]] === undefined) process.env[match[1]] = value;
   }
+}
+
+/** Set KEY=value in a .env file, replacing the line if the key is already there. For values the app obtains itself, like an OAuth refresh token. */
+export function saveDotEnvValue(path, key, value) {
+  const line = `${key}="${String(value).replace(/["\\\n]/g, '')}"`;
+  const text = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  const pattern = new RegExp(`^\\s*${key}\\s*=.*$`, 'm');
+  const next = pattern.test(text) ? text.replace(pattern, () => line) : `${text}${text && !text.endsWith('\n') ? '\n' : ''}${line}\n`;
+  writeFileSync(path, next, { mode: 0o600 });
 }
