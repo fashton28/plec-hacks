@@ -17,7 +17,8 @@
   /* ---------- State ---------- */
   let S, instant = false, settleTimer = null;
   function reset(chatId = null) {
-    S = { chatId, plan: {}, pending: null, booking: null, checked: 0, held: 0 };
+    // bookings: every booking this conversation touched, by reference, in the order they first appeared. A package is several.
+    S = { chatId, plan: {}, pending: null, bookings: new Map(), checked: 0, held: 0 };
     $('feed').innerHTML = '<div class="feed-empty">Every lookup, quote and booking shows up here as it happens.</div>';
     if ($('latest')) $('latest').outerHTML = '<div class="latest-msg" id="latest"><span class="latest-empty">Waiting for someone to say hi</span></div>';
     if ($('options')) { $('options').hidden = true; $('options').innerHTML = ''; }
@@ -131,8 +132,9 @@
     $('hero-title').textContent = p.city ? `An event in ${p.city}` : p.venue ? `An event at ${p.venue}` : 'Listening for a plan';
     countTo($('guests'), Number(p.guests) || 0);
     setText('chip-date', p.date ? prettyDate(p.date) : 'Not set');
-    setText('chip-venue', S.booking?.venue || p.venue || 'Not picked');
-    setText('chip-total', S.booking?.total || p.total || 'No quote yet');
+    const live = liveBookings();
+    setText('chip-venue', live[0]?.venue || p.venue || 'Not picked');
+    setText('chip-total', live.length ? sumTotals(live) : p.total || 'No quote yet');
   }
 
   /* ---------- Options the agent just showed ---------- */
@@ -154,8 +156,16 @@
     requested: 'The host still has to approve this one. Nothing is due yet.',
     confirmed: 'Paid and confirmed.',
   };
+  const liveBookings = () => [...S.bookings.values()].filter((b) => b.status !== 'cancelled');
+  /** Totals arrive formatted ("$1,815.00"), so add them up in cents and format the same way. */
+  function sumTotals(list) {
+    const cents = list.reduce((sum, b) => sum + Math.round(Number(String(b.total ?? '').replace(/[^0-9.]/g, '')) * 100 || 0), 0);
+    return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
   function renderBooking() {
-    const box = $('booking'), b = S.booking, q = S.pending;
+    const box = $('booking'), q = S.pending;
+    // Live bookings first. A cancelled one stays visible so the cancellation is seen to have happened.
+    const all = [...S.bookings.values()], shown = [...all.filter((b) => b.status !== 'cancelled'), ...all.filter((b) => b.status === 'cancelled')];
     const cards = [];
     if (q) {
       cards.push(`<div class="card pending bk"><div class="pending-head">${orb(46, 'live thinking')}<div><h3 class="card-title">Waiting for a clear yes</h3>` +
@@ -163,7 +173,7 @@
         `<div class="lines">${(q.lines || []).filter(([, v]) => v).map(([k, v]) => `<span>${esc(k)}</span><b>${esc(v)}</b>`).join('')}</div>` +
         `<div class="total"><span>All-in total, straight from the sandbox</span><b class="num">${esc(q.total)}</b></div></div>`);
     }
-    if (b) {
+    for (const b of shown) {
       const refund = b.status === 'cancelled' && b.refund ? `Refund: ${b.refund}.` : '';
       cards.push(`<div class="card ticket bk"><div class="shot" ${b.photoUrl ? `style="background-image:url(&quot;${esc(b.photoUrl)}&quot;)"` : ''}></div><div class="stub">` +
         `<div class="booked-row"><span class="state s-${esc(b.status)}">${esc(b.paid ? 'Paid' : STATE[b.status] || b.status)}</span><span class="code">${esc(b.ref)}</span></div>` +
@@ -217,7 +227,7 @@
       case 'plan': S.plan = d; renderHero(); break;
       case 'pending': S.pending = evt.data; renderBooking(); break;
       case 'booking':
-        S.booking = d; S.pending = null; renderBooking(); renderHero();
+        S.bookings.set(d.ref, d); S.pending = null; renderBooking(); renderHero();
         if (d.fresh) { setAgent('booked', 3500); setTimeout(() => confetti($('booking')), 150); }
         break;
       case 'agent_message':
