@@ -1,31 +1,16 @@
 /* PLEC brain stage. One code path: handle() takes backend bus events
    ({ type, chatId, data }) from either the live SSE stream or the mock player. */
 (function () {
-  const { venues, timeline } = window.DEMO;
+  const { esc, money, prettyDate, shortDate, hr, timeRange, cap, venueOf, shortName, orb, photo } = window.PLEC;
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  const money = (n) => '$' + Math.round(Number(n)).toLocaleString('en-US');
-  const params = new URLSearchParams(location.search);
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = window.PLEC.reduced;
   const ACCESS = /stairs|steps|wheelchair|walker|mobility|step-?free|accessib|elevator/i;
-
-  // Person colors: confetti tints, assigned in order of appearance.
-  const TINTS = [['#EFE7FC', '#7B3FE4'], ['#FDEBDC', '#C9661A'], ['#E7F5E5', '#3E8F3C'], ['#E6EFFE', '#2F6FD6'], ['#FDF3DA', '#A87A10'], ['#FCE5E3', '#C23030']];
-  const SKIES = [['#FBE0D4', '#ECE6F8'], ['#FCE8CE', '#F7E1EA'], ['#E6EFFE', '#FBE0D4'], ['#E7F5E5', '#FCE8CE'], ['#EFE7FC', '#FDEBDC']];
   const BARS = ['var(--bar-1)', 'var(--bar-2)', 'var(--bar-3)'];
 
-  /* ---------- Formatting ---------- */
-  const day = (d) => new Date(`${d}T12:00:00`);
-  const prettyDate = (d) => day(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).replace(',', '');
-  const shortDate = (d) => { const x = day(d); return `${x.toLocaleDateString('en-US', { weekday: 'short' })} ${x.getDate()}`; };
-  const hr = (t) => { const [h, m] = String(t).split(':').map(Number); return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''}${h >= 12 ? 'pm' : 'am'}`; };
-  const timeRange = (a, b) => `${hr(a).replace(/[ap]m$/, '')}–${hr(b)}`;
-  const cap = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
-  const venueOf = (id, fallbackName) => venues[id] || { id: String(id), name: fallbackName || String(id).replace(/-/g, ' '), hood: '', capacity: null };
-  const shortName = (v) => v.name.replace(/^The /, '');
-
   /* ---------- Fit the 1920-wide stage to the window ---------- */
+  const MOBILE = matchMedia('(max-width: 1099px)');
   function fit() {
+    if (MOBILE.matches) { $('stage').style.transform = ''; $('stage').style.height = ''; return; }
     const s = innerWidth / 1920;
     $('stage').style.transform = `scale(${s})`;
     $('stage').style.height = innerHeight / s + 'px';
@@ -34,28 +19,8 @@
   fit();
 
   /* ---------- Components ---------- */
-  const orb = (size, cls = '') => `<div class="orb ${cls}" style="--s:${size}px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>`;
-  function tint(name) {
-    let i = S.names.indexOf(name);
-    if (i < 0) i = [...name].reduce((a, c) => a + c.charCodeAt(0), 0);
-    return TINTS[i % TINTS.length];
-  }
-  const avatar = (name, size = 30) => {
-    if (name === 'PLEC') return orb(size, 'still');
-    const [bg, fg] = tint(name);
-    return `<div class="av" style="width:${size}px;height:${size}px;background:${bg};color:${fg}">${esc(name[0])}</div>`;
-  };
-  function tile(v) {
-    const [a, b] = SKIES[[...v.id].reduce((s, c) => s + c.charCodeAt(0), 0) % SKIES.length];
-    const lights = Array.from({ length: 9 }, (_, i) => `<circle cx='${16 + i * 26}' cy='${(26 + Math.sin(i / 8 * Math.PI) * 16).toFixed(1)}' r='2.2' fill='#FFF3D0'/>`).join('');
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 150' preserveAspectRatio='xMidYMid slice'>` +
-      `<defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='${a}'/><stop offset='1' stop-color='${b}'/></linearGradient></defs>` +
-      `<rect width='240' height='150' fill='url(#g)'/><path d='M10 26 Q120 62 232 26' stroke='#fff' stroke-opacity='.6' fill='none'/>${lights}` +
-      `<path d='M0 104 C60 78 120 88 170 104 S220 96 240 90 V150 H0Z' fill='#fff' opacity='.35'/>` +
-      `<path d='M0 126 C70 108 150 120 240 110 V150 H0Z' fill='#fff' opacity='.5'/></svg>`;
-    return `background-image:url(&quot;data:image/svg+xml;utf8,${svg.replace(/#/g, '%23')}&quot;)`;
-  }
-  const photo = (v) => `<div class="photo" style="${tile(v)}"><span class="initial">${esc(shortName(v)[0])}</span></div>`;
+  const tint = (name) => window.PLEC.tint(name, S.names);
+  const avatar = (name, size = 30) => window.PLEC.avatar(name, size, S.names);
 
   function glow(el) {
     if (!el || instant) return;
@@ -78,39 +43,17 @@
     };
     requestAnimationFrame(step);
   }
-  function confetti(anchor) {
-    if (instant || reduced) return;
-    const cv = $('confetti'), ctx = cv.getContext('2d');
-    cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio;
-    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-    const r = anchor.getBoundingClientRect(), ox = r.left + r.width / 2, oy = r.top + r.height / 3;
-    const cols = ['#7B3FE4', '#3B82F6', '#6CC06A', '#F5B82E', '#F08A2C', '#E4543F', '#C9B0F4', '#F8DE9A'];
-    const ps = Array.from({ length: 120 }, () => ({ x: ox, y: oy, vx: (Math.random() - .5) * 18, vy: -Math.random() * 15 - 4, s: 5 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: cols[Math.random() * cols.length | 0] }));
-    const t0 = performance.now();
-    (function frame(t) {
-      const k = (t - t0) / 1700;
-      ctx.clearRect(0, 0, innerWidth, innerHeight);
-      if (k >= 1) return;
-      ctx.globalAlpha = 1 - k * k;
-      for (const p of ps) {
-        p.vy += .45; p.vx *= .985; p.x += p.vx; p.y += p.vy; p.r += p.vr;
-        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 3, p.s, p.s * .66); ctx.restore();
-      }
-      requestAnimationFrame(frame);
-    })(t0);
-  }
-
   /* ---------- State ---------- */
   let S, instant = false, settleTimer = null;
   function reset() {
-    S = { plan: {}, pending: null, booking: null, names: [], spoke: 0, quiet: 0, introduced: false, awaitingSpeech: false, seen: new Set(), prevCells: {} };
+    S = { plan: {}, pending: null, booking: null, cal: null, names: [], spoke: 0, quiet: 0, introduced: false, awaitingSpeech: false, seen: new Set(), prevCells: {} };
     $('feed').innerHTML = '';
     $('latest').outerHTML = '<div class="latest-msg" id="latest"><span class="latest-empty">Waiting for the group to start talking…</span></div>';
     $('insight').outerHTML = '<div class="txt" id="insight"><small>✦ Quiet insight</small><b>Listening to the group…</b></div>';
     $('guests').textContent = '—'; $('trend').textContent = ''; $('trend').className = 'trend';
     for (const id of ['chip-budget', 'chip-date', 'chip-venue']) $(id).textContent = '—';
     $('votes').dataset.key = ''; $('booking').dataset.html = '';
-    renderHero(); renderWhos(); renderVotes(); renderBooking(); renderCounter(); setAgent('listening');
+    renderHero(); renderWhos(); renderVotes(); renderBooking(); renderCalendar(); renderCounter(); setAgent('listening');
   }
   const organizer = () => S.names[0] || 'the organizer';
   const people = () => S.names.filter((n) => n !== S.plan.guestOfHonor);
@@ -162,8 +105,9 @@
     vote: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M9 6l3 3 5-5"/>',
     booked: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
     issue: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
+    cal: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   };
-  const TAG = { quiet: 'Stayed quiet', learned: 'Learned', spoke: 'Spoke', vote: 'Vote', booked: 'Booked', issue: 'Issue' };
+  const TAG = { quiet: 'Stayed quiet', learned: 'Learned', spoke: 'Spoke', vote: 'Vote', booked: 'Booked', issue: 'Issue', cal: 'Calendar' };
   function activity(kind, text, sub) {
     const row = document.createElement('div');
     row.className = `item k-${kind}`;
@@ -290,7 +234,7 @@
     const el = $('whos'), opts = S.plan.dateOptions || [], ppl = people().slice(0, 6);
     if (!opts.length || !ppl.length) { el.innerHTML = '<div class="empty" style="height:190px">No dates mentioned yet</div>'; $('whos-sub').textContent = 'dates × people'; return; }
     const all = allForDate(S.plan), cells = {};
-    let h = `<div class="grid" style="grid-template-columns: 130px repeat(${opts.length}, minmax(0, 1fr))"><div></div>`;
+    let h = `<div class="grid" style="--n:${opts.length}"><div></div>`;
     for (const o of opts) h += `<div class="h ${all === o.date ? 'all' : ''}">${shortDate(o.date)}</div>`;
     for (const p of ppl) {
       h += `<div class="person">${avatar(p, 28)}${esc(p)}</div>`;
@@ -350,7 +294,7 @@
     insight('booked:' + b.venueId, `Booked ${b.venueName} for ${prettyDate(b.date)}`);
     setAgent('booked', 3500);
     renderAll();
-    setTimeout(() => confetti($('booking')), 150);
+    if (!instant) setTimeout(() => window.PLEC.confetti($('booking')), 150);
   }
   function renderAll() { renderHero(); renderVotes(); checkIssue(); renderBooking(); }
 
@@ -399,8 +343,45 @@
     if (instant) box.querySelectorAll('.bk').forEach((x) => { x.style.animation = 'none'; });
   }
 
+  /* ---------- Calendar ---------- */
+  const CAL_STATUS = { proposed: 'Proposed', sent: 'Sent', updated: 'Updated', cancelled: 'Cancelled' };
+  function onCalendar(c) {
+    const prev = S.cal;
+    S.cal = c;
+    if (c.status === 'proposed' && prev?.status !== 'proposed') activity('cal', 'Proposed the itinerary', `${(c.items || []).length} events · waiting on ${organizer()}`);
+    if (c.status === 'sent') activity('cal', c.linksOnly ? 'Sent calendar links' : 'Sent calendar invites', 'only to people who shared an email');
+    if (c.status === 'updated') activity('cal', 'Updated everyone\'s calendar', (c.items || []).find((i) => i.key === 'party')?.location || '');
+    if (c.status === 'cancelled') activity('cal', 'Cleared the calendar', c.bookingId || '');
+    renderCalendar(prev);
+  }
+  function renderCalendar(prev) {
+    const card = $('cal-card'), c = S.cal;
+    const show = !!(c && c.status && CAL_STATUS[c.status]);
+    card.hidden = !show;
+    document.querySelector('.brain').classList.toggle('has-cal', show);
+    if (!show) { $('cal').innerHTML = ''; return; }
+    const pill = $('cal-status');
+    pill.textContent = CAL_STATUS[c.status]; pill.className = `cal-pill ${c.status}`;
+    const items = c.items || [];
+    const prevLoc = prev?.items?.find((i) => i.key === 'party')?.location;
+    const timed = items.filter((i) => !i.allDay), deadlines = items.filter((i) => i.allDay);
+    const rows = timed.map((i) => {
+      const moved = prevLoc && i.location && i.location !== prevLoc;
+      const who = (i.invitees || []).slice(0, 5).map((n) => avatar(n, 20)).join('');
+      return `<div class="cal-row ${i.audience}"><time>${hr(i.start.slice(11, 16))}</time><span class="dot"></span>` +
+        `<div class="what"><b>${esc(cap(i.label || i.title))}</b><span class="${moved ? 'moved' : ''}">${moved ? '📍 ' : ''}${esc((i.location || '').split(',')[0])}${i.audience === 'guests' ? ' · everyone' : ''}</span></div>` +
+        `<div class="cal-avs">${who}</div></div>`;
+    }).join('');
+    const dl = deadlines.map((i) => `<span>${esc(shortDate(i.date))} · ${esc(i.label)}</span>`).join('');
+    const goh = c.guestOfHonor ? `<div class="cal-goh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="3"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><b>${esc(c.guestOfHonor)}</b> not invited 🤫</div>` : '';
+    const sub = c.status === 'cancelled' ? 'events removed' : c.linksOnly ? 'add-to-calendar links + .ics' : `on ${esc(organizer())}'s Google Calendar`;
+    $('cal').innerHTML = `<div class="cal-sub">${sub}</div>${goh}<div class="cal-list">${rows}</div>${dl ? `<div class="cal-deadlines">${dl}</div>` : ''}`;
+    if (prevLoc && timed.some((i) => i.location !== prevLoc)) glow(card);
+  }
+
   /* ---------- The one event handler ---------- */
-  function handle(evt) {
+  function handle(evt, opts = {}) {
+    instant = !!opts.instant;
     const d = evt.data || {};
     switch (evt.type) {
       case 'inbound':
@@ -426,48 +407,16 @@
         break;
       case 'pending': S.pending = evt.data; renderBooking(); break;
       case 'booking': onBooking(d); break;
+      case 'calendar': onCalendar(d); break;
       case 'llm_call': if ($('status-main').textContent === STATUS.listening) setAgent('thinking', 1500); break;
       case 'state_reset': reset(); break;
     }
   }
 
-  /* ---------- Mock playback ---------- */
-  let idx = 0, playing = false, speed = 1, timer = null, live = false;
-  function label() {
-    $('mode').textContent = live ? 'LIVE' : `MOCK${speed > 1 ? ' · 2×' : ''}${playing ? '' : idx >= timeline.length ? ' · done' : ' · paused (space)'}`;
-  }
-  function schedule() {
-    clearTimeout(timer);
-    if (!playing || idx >= timeline.length) { playing = playing && idx < timeline.length; label(); return; }
-    timer = setTimeout(() => { handle(timeline[idx++]); schedule(); }, timeline[idx].delay / speed);
-  }
-  addEventListener('keydown', (k) => {
-    if (live) return;
-    if (k.code === 'Space') { k.preventDefault(); playing = !playing; schedule(); }
-    else if (k.key === 'r' || k.key === 'R') { playing = false; clearTimeout(timer); idx = 0; reset(); }
-    else if (k.key === 'ArrowRight' && idx < timeline.length) { handle(timeline[idx++]); schedule(); }
-    else if (k.key === '2') { speed = speed === 1 ? 2 : 1; schedule(); }
-    else return;
-    label();
-  });
-
-  /* ---------- Start: live if /events answers, else mock ---------- */
+  /* ---------- Start: live if /events answers, else the mock player ---------- */
   reset();
-  function startMock() {
-    live = false;
-    if (params.has('at')) { instant = true; while (idx < Math.min(+params.get('at'), timeline.length)) handle(timeline[idx++]); instant = false; }
-    playing = params.has('autoplay');
-    schedule(); label();
-  }
-  // `npx serve` on 5178 has no backend, so skip the probe there (avoids a 404 in the console).
-  const tryLive = !params.has('mock') && (params.has('live') || location.port !== '5178');
-  if (tryLive && 'EventSource' in window) {
-    const es = new EventSource('/events');
-    const fallback = setTimeout(() => { es.close(); startMock(); }, 1500);
-    es.onopen = () => { clearTimeout(fallback); if (!live) { live = true; reset(); } label(); };
-    es.onerror = () => { if (!live) { clearTimeout(fallback); es.close(); startMock(); } };
-    es.onmessage = (m) => { try { handle(JSON.parse(m.data)); } catch (err) { console.warn('PLEC: bad event', err); } };
-  } else {
-    startMock();
-  }
+  let paint = () => {}; // connect() reports state before the controls exist
+  const player = window.PLEC.connect({ handle, reset: () => { instant = false; reset(); }, onChange: (st) => paint(st) });
+  paint = window.PLEC.controls($('controls'), player);
+  paint(player.state);
 })();

@@ -33,6 +33,21 @@
       total, deposit: Math.round(total * 0.3), depositPercent: 30, perPerson: Math.round(total / headcount * 100) / 100 };
   };
 
+  // Calendar itinerary, same shape as tools/calendar.js publicItems() (no emails ever reach the stage).
+  const calendar = (status, venueName, hood) => {
+    const loc = `${venueName}, ${hood}, Philadelphia`, all = ['Tony', 'Dani', 'Marcus', 'Priya'];
+    const at = (h, m = 0) => `2026-10-25T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+    const t = (key, audience, s, e, label, invitees) => ({ key, audience, allDay: false, start: s, end: e, label, title: label, location: loc, invitees });
+    const d = (key, date, label) => ({ key, audience: 'organizer', allDay: true, date, label, title: label, location: loc, invitees: ['Tony'] });
+    push(300, 'calendar', { bookingId: 'PB-1001', status, linksOnly: false, guestOfHonor: 'Sofia', items: [
+      d('deposit', '2026-09-22', 'deposit due'), d('rsvp', '2026-10-15', 'RSVP deadline'), d('final-payment', '2026-10-18', 'final payment due'),
+      t('setup', 'crew', at(17), at(18, 30), 'setup + decorating', ['Tony', 'Dani']),
+      t('arrive', 'guests', at(18, 45), at(19), 'be there, Sofia arrives at 7pm', all),
+      t('party', 'guests', at(19), at(23), 'the party', all),
+      t('cleanup', 'crew', at(23), at(23, 30), 'cleanup', ['Tony', 'Dani']),
+    ] });
+  };
+
   // 1. Intro (the backend sends the intro directly, with no decision event)
   say('Tony', "ok team. sofia's 30th. SURPRISE party. I'm organizing, added plec to help us book a place", 800);
   update({ eventType: '30th birthday', guestOfHonor: 'Sofia', isSurprise: true }, ['eventType', 'guestOfHonor', 'isSurprise'], 500);
@@ -89,10 +104,10 @@
   speak('suggest_venues', 'mentioned directly', [
     "ok here's where you all are 👇 Dani can't do the 17th, Marcus is away the 18th, Tony has a wedding the 24th. so Sun Oct 25 works for all 4 of you",
     "Tony said ~45 people, Marcus wants under $40 a head, Priya's grandma can't do stairs and Dani wants to dance. 3 spots that fit:",
-    '1. The Kiln Loft, Fishtown. step-free, DJ booth, fits 50. $1,650 ($37/head)\n2. Cedar Carriage Hall, West Philly. dance floor, fits 100. $1,350\n3. Brightwater Hall, Northern Liberties. fits 90. $1,950',
-    'reply 1, 2 or 3 to vote 🗳️',
   ], 2400);
   update({ shortlist: ['kiln-loft-fishtown', 'carriage-hall-westphilly', 'brightwater-hall-nolibs'], status: 'options_sent' }, ['shortlist'], 200);
+  push(500, 'typing', {});
+  push(1100, 'agent_message', { text: 'reply 1, 2 or 3 to vote 🗳️' });
 
   // 4. Votes
   const vote = (who, id, rest) => {
@@ -123,9 +138,28 @@
   push(300, 'typing', {});
   push(1300, 'agent_message', { text: 'done ✅ The Kiln Loft, Sun Oct 25 7pm-11pm for 45. ref PB-1001' });
   push(600, 'agent_message', { text: '$495 deposit due to hold it, $1,650 total' });
+  push(600, 'agent_message', { text: "want this on your calendars? reply with your email and I'll send invites 📅" });
   say('Dani', 'AHHH its happening 🎉', 2200);
   say('Marcus', "i'll handle the playlist obviously", 1500);
+  say('Dani', 'i can come early to help decorate 🎈', 1500);
   quiet('celebrating, nothing to do');
+
+  // 5b. Calendar: opt in by email, Tony confirms, invites go out (server code, like bookings)
+  say('Dani', 'd•••@gmail.com', 1800);
+  push(700, 'agent_message', { text: 'got it Dani 📅' });
+  say('Marcus', 'm•••@gmail.com', 1400);
+  push(700, 'agent_message', { text: 'got it Marcus 📅' });
+  say('Priya', 'p•••@gmail.com', 1400);
+  push(200, 'pending', { id: 'pa-cal', kind: 'calendar_create', payload: { bookingId: 'PB-1001' }, summaryText: 'calendar plan for Sun Oct 25 at The Kiln Loft' });
+  calendar('proposed', 'The Kiln Loft', 'Fishtown');
+  push(500, 'typing', {});
+  push(1200, 'agent_message', { text: 'got it Priya 📅' });
+  push(900, 'agent_message', { text: 'calendar plan for Sun Oct 25 at The Kiln Loft:\n5pm setup + decorating (Tony, Dani)\n6:45pm be there, Sofia arrives at 7pm (everyone)\n7pm-11pm the party (everyone)\n11pm cleanup (Tony, Dani)' });
+  push(900, 'agent_message', { text: 'invites go to Dani, Marcus and Priya\nSofia gets nothing 🤫\nTony, want me to send the invites? reply yes' });
+  say('Tony', 'yes send them', 2600);
+  push(100, 'pending', null);
+  calendar('sent', 'The Kiln Loft', 'Fishtown');
+  push(600, 'agent_message', { text: 'done ✅ invites sent to Dani, Marcus and Priya. check your calendars' });
 
   // 6. Over capacity
   say('Priya', 'update: my cousins are coming, +8', 2600);
@@ -145,6 +179,8 @@
   push(100, 'pending', null);
   push(300, 'typing', {});
   push(1300, 'agent_message', { text: 'switched ✅ Brightwater Hall, Sun Oct 25 7pm-11pm for 53. same ref PB-1001' });
+  calendar('updated', 'Brightwater Hall', 'Northern Liberties');
+  push(700, 'agent_message', { text: "updated everyone's calendar with the new spot 📍" });
   say('Priya', 'plec ur the best 😭', 2200);
   quiet('a thank-you, no reply needed');
 

@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>PLEC · Group Chat Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23E4543F'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="base.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -82,6 +83,11 @@
 
     <section class="booking" id="booking"></section>
 
+    <section class="card cal-card" id="cal-card" hidden>
+      <div class="card-head"><span class="card-title">Calendar</span><span class="cal-pill" id="cal-status">Proposed</span></div>
+      <div id="cal"></div>
+    </section>
+
     <aside class="card rail">
       <div class="card-head"><span class="card-title">Activity</span><span class="card-sub">PLEC's decisions</span></div>
       <div class="rail-status">
@@ -92,10 +98,11 @@
     </aside>
   </main>
 
-  <div class="mode" id="mode">MOCK</div>
+  <div class="controls" id="controls"></div>
+  <a class="view-link" href="phone.html">Chat view →</a>
 </div>
-<canvas class="confetti" id="confetti"></canvas>
 <script src="demo.js"></script>
+<script src="shared.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

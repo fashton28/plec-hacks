@@ -47,6 +47,7 @@ label reads **LIVE**. If `/events` doesn't answer within 1.5s, it plays the mock
 | `decision` | `{ speak, reason, intent }` | "Stayed quiet"/"Spoke" rows, counters, orb thinking |
 | `pending` | PendingAction or `null` | `create_booking` → confirm card; `modify_booking` → over-capacity card |
 | `booking` | Booking | ticket, confetti, "Booked"/"Moved to" row |
+| `calendar` | `{ bookingId, status, linksOnly, items, guestOfHonor }` (no emails) | Calendar card: mini timeline, Proposed/Sent/Updated pill, guest of honor "not invited 🤫" |
 | `llm_call` | — | orb thinking pulse |
 | `state_reset` | — | clears the stage |
 

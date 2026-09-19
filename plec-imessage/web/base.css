@@ -1,0 +1,121 @@
+/* Shared by the brain stage (index.html) and the chat view (phone.html). */
+
+:root {
+  /* Logo: coral wordmark + confetti burst */
+  --coral: #E4543F;  --coral-600: #CF4431;  --coral-50: #FCEBE7;
+  --c-violet: #7B3FE4; --c-blue: #3B82F6; --c-green: #6CC06A;
+  --c-yellow: #F5B82E; --c-orange: #F08A2C; --c-red: #E23B3B;
+  /* Soft tints of the confetti for fills */
+  --t-violet: #EFE7FC; --t-blue: #E6EFFE; --t-green: #E7F5E5;
+  --t-yellow: #FDF3DA; --t-orange: #FDEBDC; --t-red: #FCE5E3;
+  /* Bars: confetti at pastel strength */
+  --bar-1: #C9B0F4; --bar-2: #A9C6F7; --bar-3: #B3DFA9;
+
+  --canvas: #FBF7F4; --canvas-2: #F3EEEA;
+  --ink: #141014; --text: #2E2729; --muted: #8A7B7C; --subtle: #AFA3A2;
+  --hairline: rgba(214,170,150,.28);
+  --ok: #3E9B4F; --ok-bg: var(--t-green); --bad: var(--c-red); --bad-bg: var(--t-red);
+
+  --sky: linear-gradient(180deg, #FBE0D4 0%, #FCE8CE 34%, #F7E1EA 66%, #ECE6F8 100%);
+  --insight-grad: linear-gradient(100deg, #FDDCCD, #FCE9C9 50%, #EDE3FB);
+  --issue-grad: linear-gradient(100deg, #FAD2CA, #FCDDC6 55%, #FDEBD3);
+  --hatch: repeating-linear-gradient(135deg, rgba(175,163,162,.2) 0 2px, transparent 2px 8px);
+
+  --card: #fff; --r-xl: 28px; --r-lg: 22px; --r-md: 16px; --pill: 9999px;
+  --shadow: 0 8px 26px -10px rgba(170,100,80,.22);
+  --font: "Plus Jakarta Sans", system-ui, sans-serif;
+  --ease: cubic-bezier(.2,.8,.2,1);
+  --spring: cubic-bezier(.34,1.56,.64,1);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: var(--font); color: var(--text); background: var(--canvas); -webkit-font-smoothing: antialiased; }
+svg { display: block; }
+.num { font-variant-numeric: tabular-nums; }
+.blob { position: absolute; border-radius: 50%; filter: blur(110px); pointer-events: none; }
+.blob.b1 { width: 900px; height: 700px; left: -260px; top: -300px; background: #F9D3C4; opacity: .5; }
+.blob.b2 { width: 900px; height: 700px; right: -240px; bottom: -340px; background: #FCE3B8; opacity: .45; }
+.blob.b3 { width: 700px; height: 600px; right: 30%; top: 30%; background: #EDE2FA; opacity: .35; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c-green); box-shadow: 0 0 0 3px rgba(108,192,106,.22); animation: live 2s ease-in-out infinite; }
+@keyframes live { 50% { box-shadow: 0 0 0 6px rgba(108,192,106,.06); } }
+/* ---------- Orb: a glossy 3D take on the logo burst ---------- */
+.orb { --s: 40px; position: relative; width: var(--s); height: var(--s); flex: none; }
+.orb::before {
+  content: ""; position: absolute; left: 8%; right: 8%; top: 35%; bottom: -18%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(240,140,120,.5), rgba(245,184,46,.18) 65%, transparent);
+  filter: blur(calc(var(--s) * .12));
+}
+.orb-body {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: #F6E6E0;
+  box-shadow: inset 0 0 calc(var(--s) * .1) rgba(255,255,255,.8), inset calc(var(--s) * -.06) calc(var(--s) * -.08) calc(var(--s) * .2) rgba(200,110,90,.28);
+  animation: breathe 4s ease-in-out infinite;
+}
+.orb-swirl {
+  position: absolute; inset: -30%;
+  background: conic-gradient(from 0deg, #C9B0F4, #A9C8F8, #B8E3B0, #F8DE9A, #F8C49A, #F4AE9E, #C9B0F4);
+  filter: blur(calc(var(--s) * .08));
+  animation: spin 12s linear infinite;
+}
+.orb-ribbon {
+  position: absolute; left: -10%; right: -10%; top: 38%; height: 26%; border-radius: 50%;
+  background: linear-gradient(90deg, transparent, rgba(244,150,130,.75), rgba(190,150,240,.75), rgba(150,190,245,.65), transparent);
+  filter: blur(calc(var(--s) * .04)); transform: rotate(-18deg); opacity: .8;
+  animation: ribbon 7s ease-in-out infinite;
+}
+.orb-body::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background:
+    radial-gradient(ellipse 34% 26% at 34% 24%, rgba(255,255,255,.95), rgba(255,255,255,0)),
+    radial-gradient(circle at 78% 82%, rgba(255,255,255,.55), rgba(255,255,255,0) 24%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.6);
+}
+.orb-ring { position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(228,84,63,.45); opacity: 0; }
+.orb.thinking .orb-swirl { animation-duration: 2s; }
+.orb.thinking .orb-body { animation-duration: 1.4s; }
+.orb.thinking .orb-ribbon { animation-duration: 1.2s; }
+.orb.speaking .orb-ring { animation: ring 1.4s var(--ease) infinite; }
+.orb.speaking .orb-swirl { animation-duration: 5s; }
+.orb.celebrate .orb-body { animation: pop-big .9s var(--spring); }
+.orb.still .orb-swirl, .orb.still .orb-body, .orb.still .orb-ribbon { animation: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes breathe { 50% { transform: scale(1.03); } }
+@keyframes ribbon { 0%, 100% { transform: rotate(-18deg) scaleX(1); } 50% { transform: rotate(12deg) scaleX(1.1); } }
+@keyframes ring { from { transform: scale(1); opacity: .8; } to { transform: scale(1.75); opacity: 0; } }
+@keyframes pop-big { 40% { transform: scale(1.15); } }
+.typing { display: inline-flex; gap: 4px; padding: 4px 2px; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--c-violet); opacity: .6; animation: bounce 1.2s infinite ease-in-out; }
+.typing i:nth-child(2) { background: var(--coral); animation-delay: .15s; }
+.typing i:nth-child(3) { background: var(--c-yellow); animation-delay: .3s; }
+@keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .6; } 30% { transform: translateY(-5px); opacity: 1; } }
+.av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; flex: none; }
+.photo { position: relative; background-size: cover; overflow: hidden; }
+.photo .initial { position: absolute; right: 12px; bottom: 0; font-size: 64px; font-weight: 800; color: rgba(255,255,255,.45); line-height: 1; letter-spacing: -0.05em; }
+/* Motion helpers */
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes pop-in { from { opacity: 0; transform: scale(.4); } }
+@keyframes slide-in { from { opacity: 0; transform: translateX(40px); } }
+@keyframes slide-up { from { opacity: 0; transform: translateY(14px); } }
+@keyframes glow {
+  15% { box-shadow: 0 0 0 5px rgba(245,184,46,.25), 0 0 30px 8px rgba(240,138,44,.35); background-color: rgba(253,243,218,.95); }
+}
+.glow { animation: glow 1.2s var(--ease); }
+
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 20; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+}
+
+/* Playback controls (both pages) */
+.controls { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px 4px 4px; border-radius: var(--pill); background: rgba(255,255,255,.85); border: 1px solid var(--hairline); box-shadow: var(--shadow); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.ctl { width: 32px; height: 32px; border-radius: 50%; border: 0; background: transparent; color: var(--ink); font: 700 13px var(--font); cursor: pointer; display: grid; place-items: center; -webkit-tap-highlight-color: transparent; }
+.ctl:hover { background: var(--canvas-2); }
+.ctl[data-a="toggle"] { background: var(--coral); color: #fff; font-size: 12px; }
+.ctl[data-a="toggle"]:hover { background: var(--coral-600); }
+.mode-text { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .04em; margin-left: 4px; white-space: nowrap; }
+.controls.is-live .ctl { display: none; }
+.controls.is-live { padding-left: 12px; }
+.view-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--pill); background: rgba(255,255,255,.85); border: 1px solid var(--hairline); box-shadow: var(--shadow); font-size: 13px; font-weight: 700; color: var(--text); text-decoration: none; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.view-link:hover { color: var(--coral-600); }
+.badge { position: absolute; left: 8px; top: 8px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.8); backdrop-filter: blur(8px); font-size: 13px; font-weight: 800; color: var(--ink); z-index: 1; }
