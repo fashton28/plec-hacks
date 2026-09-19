@@ -1,0 +1,433 @@
+<!doctype html>
+<!--
+  PLEC Concierge chat page. One file, no build step.
+
+  It talks to the agent contract (docs/contract.md):
+    POST {agent}/agent/messages { sessionId, text } -> { parts }
+    POST {agent}/agent/reset    { sessionId }       -> { ok }
+
+  The agent URL is this page's own origin (agent/server.js serves it), or
+  whatever you pass as ?agent=http://localhost:9000 for a server elsewhere.
+  The sessionId lives in localStorage so a reload keeps the conversation and
+  "Start over" mints a new one.
+
+  RENDERING: every reply part is drawn by `renderers[part.kind]` in the script
+  below. To support a new kind, add one function to that map that takes the
+  part and returns an element; nothing else changes. Unknown kinds fall back
+  to a muted note instead of breaking the log.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PLEC Concierge</title>
+<link rel="icon" href="emblem.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500&family=Livvic:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --brand: #E15543;
+    --brand-700: hsl(5 90% 50%);
+    --brand-600: hsl(5 90% 56%);
+    --brand-50: hsl(5 90% 97%);
+    --navy: #1F3A5F;
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+    --faint: #a3a3a3;
+    --page: #f6f4f1;
+    --panel: rgba(255, 255, 255, 0.92);
+    --bubble: rgba(255, 255, 255, 0.85);
+    --ring: rgba(0, 0, 0, 0.06);
+    --font-body: "Livvic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-title: "Bricolage Grotesque", "Livvic", ui-sans-serif, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: var(--font-body);
+    color: var(--ink);
+    background:
+      radial-gradient(60rem 30rem at 15% -10%, hsl(5 90% 63% / 0.16), transparent 60%),
+      radial-gradient(50rem 30rem at 100% 110%, hsl(213 51% 25% / 0.10), transparent 60%),
+      var(--page);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  h1, h2, h3 { font-family: var(--font-title); font-weight: 400; margin: 0; }
+
+  .panel {
+    width: min(440px, 100%);
+    height: min(720px, calc(100dvh - 48px));
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--panel);
+    border-radius: 24px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 24px 60px -20px rgba(31,58,95,.35), 0 0 0 1px rgba(0,0,0,.08);
+    backdrop-filter: blur(16px) saturate(150%);
+  }
+  @media (max-width: 520px) {
+    body { padding: 0; }
+    .panel { width: 100%; height: 100dvh; border-radius: 0; }
+  }
+
+  /* Header */
+  .header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--ring); }
+  .emblem { position: relative; width: 40px; height: 40px; flex: none; }
+  .emblem img { width: 40px; height: 40px; display: block; }
+  .emblem .dot { position: absolute; right: -2px; bottom: -2px; width: 12px; height: 12px; border-radius: 999px; background: #10b981; border: 2px solid #fff; }
+  .header .who { min-width: 0; flex: 1; }
+  .header h1 { font-size: 17px; line-height: 1.2; letter-spacing: -0.01em; color: var(--navy); }
+  .header p { margin: 2px 0 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .iconbtn {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    padding: 8px 10px; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 500;
+  }
+  .iconbtn:hover { background: rgba(0,0,0,.05); color: var(--ink); }
+  .iconbtn svg { width: 16px; height: 16px; }
+
+  /* Log */
+  .log { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; animation: rise .18s ease-out; }
+  .row.user { justify-content: flex-end; }
+  .row.agent { justify-content: flex-start; }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .bubble {
+    max-width: 85%; padding: 8px 14px; border-radius: 16px; font-size: 14px; line-height: 1.55;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .user .bubble {
+    color: #fff; border-bottom-right-radius: 6px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-700));
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  }
+  .user .bubble.failed { opacity: .6; }
+  .agent .bubble { background: var(--bubble); border-bottom-left-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 0 0 1px var(--ring); }
+  .note { text-align: center; font-size: 12px; color: var(--muted); padding: 4px 24px; line-height: 1.5; }
+  .note button { border: 0; background: none; color: var(--brand-600); font: inherit; font-weight: 600; cursor: pointer; padding: 0 2px; }
+
+  .card {
+    display: block; width: 256px; overflow: hidden; text-decoration: none; color: inherit;
+    background: #fff; border-radius: 16px; border-bottom-left-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 0 0 1px var(--ring); transition: box-shadow .15s;
+  }
+  a.card:hover { box-shadow: 0 6px 18px -6px rgba(0,0,0,.25), 0 0 0 1px var(--ring); }
+  .card img { display: block; width: 100%; height: 128px; object-fit: cover; background: #eee; }
+  .card .body { padding: 12px; }
+  .card .title { font-size: 14px; font-weight: 600; line-height: 1.3; }
+  .card .sub { margin-top: 2px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .card .cta { margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--brand-600); }
+  .card .cta svg, .pill svg { width: 12px; height: 12px; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 999px;
+    background: #fff; color: var(--brand-600); font-size: 14px; font-weight: 500; text-decoration: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 0 0 1px var(--ring);
+  }
+  .pill:hover { background: var(--brand-50); }
+
+  figure.photo { margin: 0; width: 256px; overflow: hidden; background: #fff; border-radius: 16px; border-bottom-left-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 0 0 1px var(--ring); }
+  figure.photo img { display: block; width: 100%; height: 160px; object-fit: cover; background: #eee; }
+  figure.photo figcaption { padding: 10px; font-size: 12px; color: #444; line-height: 1.5; }
+
+  /* Typing indicator */
+  .typing { display: inline-flex; gap: 4px; align-items: center; padding: 12px 16px; border-radius: 16px; border-bottom-left-radius: 6px; background: var(--bubble); box-shadow: 0 0 0 1px var(--ring); }
+  .typing i { width: 6px; height: 6px; border-radius: 999px; background: var(--faint); animation: bounce 1s infinite; }
+  .typing i:nth-child(2) { animation-delay: .15s; }
+  .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-5px); } }
+
+  /* Suggestions */
+  .suggest { display: flex; flex-direction: column; gap: 8px; margin: auto 0; padding: 8px 4px; }
+  .suggest h2 { font-size: 22px; letter-spacing: -0.01em; color: var(--navy); margin-bottom: 4px; }
+  .suggest p { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+  .chip {
+    text-align: left; border: 0; cursor: pointer; font: inherit; font-size: 13px; color: var(--ink);
+    padding: 10px 14px; border-radius: 14px; background: #fff; box-shadow: 0 0 0 1px var(--ring);
+  }
+  .chip:hover { background: var(--brand-50); }
+
+  /* Composer */
+  .composer { padding: 6px 12px 8px; }
+  .box { display: flex; align-items: flex-end; gap: 8px; padding: 6px; border-radius: 16px; background: var(--bubble); box-shadow: 0 0 0 1px var(--ring); }
+  textarea {
+    flex: 1; resize: none; border: 0; outline: 0; background: transparent; font: inherit; font-size: 14px; line-height: 1.5;
+    padding: 8px 10px; max-height: 120px; color: var(--ink);
+  }
+  textarea::placeholder { color: var(--faint); }
+  .send {
+    flex: none; width: 36px; height: 36px; border-radius: 999px; border: 0; cursor: pointer; margin-bottom: 2px;
+    display: inline-flex; align-items: center; justify-content: center; color: #fff;
+    background: linear-gradient(135deg, var(--brand), var(--brand-700)); box-shadow: 0 1px 2px rgba(0,0,0,.1);
+    transition: transform .12s;
+  }
+  .send:hover:not(:disabled) { transform: scale(1.05); }
+  .send:disabled { background: rgba(0,0,0,.08); color: var(--faint); cursor: default; }
+  .send svg { width: 16px; height: 16px; }
+  .fine { margin: 6px 0 0; text-align: center; font-size: 10px; line-height: 1.3; color: var(--faint); }
+  .fine code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+</style>
+</head>
+<body>
+<div class="panel" role="dialog" aria-label="Chat with the PLEC Concierge">
+  <div class="header">
+    <div class="emblem"><img src="emblem.svg" alt="PLEC" /><span class="dot" aria-hidden="true"></span></div>
+    <div class="who">
+      <h1>PLEC Concierge</h1>
+      <p id="tagline">AI booking assistant, replies in seconds</p>
+    </div>
+    <button class="iconbtn" id="reset" title="Start over" aria-label="Start a new conversation">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      Start over
+    </button>
+  </div>
+
+  <div class="log" id="log" role="log" aria-live="polite"></div>
+
+  <div class="composer">
+    <div class="box">
+      <textarea id="input" rows="1" maxlength="2000" placeholder="Ask about venues, DJs, caterers..." aria-label="Message the PLEC Concierge"></textarea>
+      <button class="send" id="send" disabled aria-label="Send message">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+      </button>
+    </div>
+    <p class="fine" id="fine">AI assistant. It can make mistakes.</p>
+  </div>
+</div>
+
+<script>
+  // ---------- configuration ----------
+  const params = new URLSearchParams(location.search);
+  const AGENT = (params.get('agent') || location.origin).replace(/\/+$/, '');
+  const TURN_TIMEOUT_MS = 45_000;
+  const KEY_SESSION = 'plec.sessionId';
+  const KEY_LOG = 'plec.log';
+
+  const $log = document.getElementById('log');
+  const $input = document.getElementById('input');
+  const $send = document.getElementById('send');
+  const $reset = document.getElementById('reset');
+  const $fine = document.getElementById('fine');
+
+  let sessionId = read(KEY_SESSION) || newSessionId();
+  write(KEY_SESSION, sessionId);
+  /** [{ role: 'user'|'agent'|'note', part }] so a reload redraws the log. */
+  let entries = readJson(KEY_LOG) || [];
+  let sending = false;
+
+  // ---------- renderers: one function per part kind ----------
+  const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>';
+
+  const renderers = {
+    text(part) {
+      const el = document.createElement('div');
+      el.className = 'bubble';
+      el.textContent = part.text;
+      return el;
+    },
+    card(part) {
+      const el = document.createElement(part.url ? 'a' : 'div');
+      el.className = 'card';
+      if (part.url) { el.href = part.url; el.target = '_blank'; el.rel = 'noreferrer'; }
+      const photo = Array.isArray(part.photoUrls) ? part.photoUrls[0] : null;
+      if (photo) {
+        const img = document.createElement('img');
+        img.src = photo; img.alt = part.title; img.loading = 'lazy';
+        el.appendChild(img);
+      }
+      const body = document.createElement('div');
+      body.className = 'body';
+      body.appendChild(node('div', 'title', part.title));
+      if (part.subtitle) body.appendChild(node('div', 'sub', part.subtitle));
+      if (part.url) {
+        const cta = node('span', 'cta', 'View details');
+        cta.insertAdjacentHTML('beforeend', ARROW);
+        body.appendChild(cta);
+      }
+      el.appendChild(body);
+      return el;
+    },
+    link(part) {
+      const el = document.createElement('a');
+      el.className = 'pill'; el.href = part.url; el.target = '_blank'; el.rel = 'noreferrer';
+      el.textContent = part.label;
+      el.insertAdjacentHTML('beforeend', ARROW);
+      return el;
+    },
+    image(part) {
+      const el = document.createElement('figure');
+      el.className = 'photo';
+      const img = document.createElement('img');
+      img.src = part.url; img.alt = part.caption || 'Photo from the assistant'; img.loading = 'lazy';
+      el.appendChild(img);
+      if (part.caption) el.appendChild(node('figcaption', '', part.caption));
+      return el;
+    },
+    unknown(part) {
+      return node('div', 'bubble', `[${part && part.kind ? part.kind : 'unknown'} part]`);
+    },
+  };
+
+  function render(part) {
+    const draw = renderers[part && part.kind] || renderers.unknown;
+    return draw(part);
+  }
+
+  // ---------- drawing the log ----------
+  function draw() {
+    $log.replaceChildren();
+    if (entries.length === 0 && !sending) {
+      $log.appendChild(suggestions());
+    } else {
+      for (const entry of entries) $log.appendChild(row(entry));
+      if (sending) $log.appendChild(typing());
+    }
+    $log.scrollTop = $log.scrollHeight;
+  }
+
+  function row(entry) {
+    if (entry.role === 'note') {
+      const el = node('div', 'note', entry.part.text);
+      if (entry.retryText) {
+        const btn = node('button', '', 'Retry');
+        btn.onclick = () => send(entry.retryText);
+        el.append(' ', btn);
+      }
+      return el;
+    }
+    const el = document.createElement('div');
+    el.className = `row ${entry.role}`;
+    const child = render(entry.part);
+    if (entry.role === 'user' && entry.failed) child.classList.add('failed');
+    el.appendChild(child);
+    return el;
+  }
+
+  function typing() {
+    const el = document.createElement('div');
+    el.className = 'row agent';
+    el.innerHTML = '<div class="typing" role="status" aria-label="The assistant is typing"><i></i><i></i><i></i></div>';
+    return el;
+  }
+
+  function suggestions() {
+    const el = document.createElement('div');
+    el.className = 'suggest';
+    el.appendChild(node('h2', '', 'What are you planning?'));
+    el.appendChild(node('p', '', 'Venues and services in Philadelphia, New York and Washington. Try one:'));
+    for (const text of [
+      'I need a venue in Philadelphia for 40 people on October 10',
+      'How much is The Foundry at Fishtown from 6pm to 11pm on October 10 for 40 guests?',
+      'Show me photos of The Rooftop at Rittenhouse',
+      'What is the status of booking BK-1001?',
+    ]) {
+      const chip = node('button', 'chip', text);
+      chip.onclick = () => send(text);
+      el.appendChild(chip);
+    }
+    return el;
+  }
+
+  // ---------- talking to the agent ----------
+  async function send(text) {
+    text = (text || '').trim();
+    if (!text || sending) return;
+    entries = entries.filter((e) => !(e.role === 'note' && e.retryText === text));
+    const mine = { role: 'user', part: { kind: 'text', text } };
+    entries.push(mine);
+    sending = true;
+    $send.disabled = true;
+    persist(); draw();
+
+    try {
+      const res = await fetch(`${AGENT}/agent/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, text }),
+        signal: AbortSignal.timeout(TURN_TIMEOUT_MS),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || body.error || `HTTP ${res.status}`);
+      const parts = Array.isArray(body.parts) ? body.parts : [];
+      if (parts.length === 0) throw new Error('The agent returned no parts');
+      for (const part of parts) entries.push({ role: 'agent', part });
+    } catch (err) {
+      mine.failed = true;
+      const why = err && err.name === 'TimeoutError' ? `No reply in ${TURN_TIMEOUT_MS / 1000}s` : (err && err.message) || String(err);
+      entries.push({ role: 'note', part: { kind: 'text', text: `Not delivered: ${why}.` }, retryText: text });
+    } finally {
+      sending = false;
+      persist(); draw();
+      $input.focus();
+      updateSend();
+    }
+  }
+
+  async function reset() {
+    try {
+      await fetch(`${AGENT}/agent/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch {
+      // The reset endpoint is optional in the contract; a fresh sessionId is a fresh conversation regardless.
+    }
+    sessionId = newSessionId();
+    write(KEY_SESSION, sessionId);
+    entries = [];
+    persist(); draw(); showFine();
+    $input.focus();
+  }
+
+  // ---------- composer ----------
+  function updateSend() { $send.disabled = sending || $input.value.trim().length === 0; }
+  function resize() { $input.style.height = 'auto'; $input.style.height = `${Math.min($input.scrollHeight, 120)}px`; }
+  $input.addEventListener('input', () => { updateSend(); resize(); });
+  $input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+  });
+  $send.addEventListener('click', submit);
+  $reset.addEventListener('click', reset);
+  function submit() {
+    const text = $input.value;
+    $input.value = '';
+    resize(); updateSend();
+    send(text);
+  }
+
+  // ---------- helpers ----------
+  function node(tag, className, text) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+  function newSessionId() {
+    // The evaluator sends UUIDs; the page does the same so your agent sees one id shape.
+    if (globalThis.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  }
+  // localStorage can throw (private windows, blocked storage); the page must work without it.
+  function read(key) { try { return localStorage.getItem(key); } catch { return null; } }
+  function write(key, value) { try { localStorage.setItem(key, value); } catch { /* ignore */ } }
+  function readJson(key) { try { return JSON.parse(read(key) || 'null'); } catch { return null; } }
+  function persist() { write(KEY_LOG, JSON.stringify(entries.slice(-200))); }
+  function showFine() {
+    $fine.innerHTML = '';
+    $fine.append('AI assistant. It can make mistakes. Agent ');
+    $fine.appendChild(node('code', '', AGENT));
+    $fine.append(' | session ');
+    $fine.appendChild(node('code', '', sessionId.slice(0, 8)));
+  }
+
+  showFine();
+  draw();
+  $input.focus();
+</script>
+</body>
+</html>

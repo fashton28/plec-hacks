@@ -1,0 +1,12 @@
+{
+  "name": "plecathon-agent-template",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node agent/server.js",
+    "test": "node tests/run.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
