@@ -148,7 +148,10 @@ test('booking: nothing is booked without a yes, then exactly one booking with an
   const reply = textOf(third);
   assert.ok(reply.includes(bookings[0].ref), 'reference missing from the reply');
   assert.ok(reply.includes(bookings[0].payment.url), 'payment URL missing from the reply text');
-  assert.deepEqual(third.filter((p) => p.kind === 'link').map((p) => p.url), [bookings[0].payment.url]);
+  const links = third.filter((p) => p.kind === 'link');
+  assert.deepEqual(links.map((p) => p.label), [`Pay to confirm ${bookings[0].ref}`, 'Add to Google Calendar'], 'payment first, then the calendar invite, nothing else');
+  assert.equal(links[0].url, bookings[0].payment.url);
+  assert.match(links[1].url, /\/c\/[A-Za-z0-9_-]+$/);
   assert.equal((await plec.getBooking(bookings[0].ref)).payment.status, 'unpaid', 'the agent must never pay');
 
   // Turn 4: cancel asks first, even when the model does not.
@@ -177,7 +180,7 @@ test('request-to-book: details, identity and the yes in one message book in one 
   const { bookings } = await plec.listBookings();
   assert.equal(bookings.length, 1);
   assert.equal(bookings[0].status, 'requested');
-  assert.equal(parts.filter((p) => p.kind === 'link').length, 0, 'nothing is due yet, so no payment link');
+  assert.deepEqual(parts.filter((p) => p.kind === 'link').map((p) => p.label), ['Add to Google Calendar'], 'nothing is due yet, so no payment link; the calendar invite still comes');
 });
 
 test('honesty: a blackout error reaches the model verbatim and nothing is booked', async () => {

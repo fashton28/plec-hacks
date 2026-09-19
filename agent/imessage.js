@@ -33,6 +33,7 @@ import { respond } from './agent.js';
 import { canonicalSender } from './guards.js';
 import { mergeInbound, needsTextNotice, planOutbound, readInbound, shouldRespond, takeBurst } from './imessage-policy.js';
 import { getSession, withSessionLock } from './session.js';
+import { stage } from './stage.js';
 
 /** Photon's inbound guidance: let a burst of texts settle, then answer whatever accumulated as one turn. */
 const SETTLE_MS = 1_000;
@@ -215,7 +216,10 @@ export function createChannel({ respond, withSessionLock, getSession, loadPhoto 
    */
   async function takeTurn(space, sessionId, inbound, lastMessage) {
     const session = getSession(sessionId);
-    if (!shouldRespond(inbound, session.state, now())) return null;
+    if (!shouldRespond(inbound, session.state, now())) {
+      stage.quiet(sessionId, 'nobody was talking to PLEC');
+      return null;
+    }
 
     // Read receipts and the typing bubble are polish. A line that rejects them must still get its answer.
     await Promise.all([quietly('mark read', () => lastMessage.read()), quietly('typing start', () => space.startTyping())]);

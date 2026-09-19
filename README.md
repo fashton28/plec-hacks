@@ -25,7 +25,8 @@ Typical replies take 1 to 5 seconds.
 | Consent gates and input normalization | `agent/guards.js`, `agent/consent.js` | Done. Pure functions, unit tested. `consent.js` reads the yes or no, `guards.js` decides whether the write may run. |
 | Listing name lookup and bookability screening | `agent/catalogue.js` | Done. Uses the offline catalogue copy for names and rules only, never for facts. |
 | Cards, images, payment links, exact money figures | `agent/parts.js` | Done. Pure functions, unit tested. |
-| Chat UI | `chat/index.html` | Done. Renders text, card, link and image parts. |
+| Front page: the chat with live panels | `chat/index.html`, `chat/app.js`, `chat/app.css` | Done. `/` is the chat. Beside it, panels show what the agent understood, quoted, booked and held back for that conversation. A floating Messages-blue bubble leads to the iMessage sign-up. |
+| Big-screen view | `chat/stage.html`, `chat/stage.js`, `chat/stage.css`, `agent/stage.js` | Done. `/stage.html` follows whichever conversation spoke last on any channel, for a projector. See "Live stage" below. |
 | iMessage channel | `agent/imessage.js` | Optional second front door to the same brain, for DMs and group chats. Off unless the two `SPECTRUM_` variables are set. Needs a live test before a demo: [docs/imessage.md](docs/imessage.md). |
 | iMessage rules: what to ignore, when to speak in a group, which bubbles go out | `agent/imessage-policy.js` | Pure functions with no SDK import, unit tested offline. |
 | Public scenario runner | `tests/run.js` | Done. Needs a sandbox key and a working model key. |
@@ -273,6 +274,54 @@ Three things are deliberately not left to the model.
   `quote` does not ignore the booking's own slot, but `reschedule_booking` does.
   Quoting a new time that overlaps the old one on the same date fails even though the move itself would succeed.
 
+## Whole events, calendar invites, playlists and invitations
+
+Built on top of the ten sandbox tools, in `agent/extras.js`.
+Every quote, lookup and booking inside them goes through the brain's own `runTool`, so the consent gates, ownership rules, turn deadline and stage narration apply to a package exactly as they do to one booking.
+
+| tool | what it does |
+| --- | --- |
+| `plan_package` | From a city, date, time window, headcount, wanted services and an optional budget: picks a venue and one provider per service, quotes every one for the same slot, and returns each all-in total plus the combined total against the budget. With a budget it takes the cheapest options that work; without one, the best rated. It reports honestly what it could not include. It books nothing. |
+| `book_package` | After a clear yes, makes one ordinary booking per item. If the consent gate refuses the first one, nothing is booked. If the sandbox refuses one item, the rest still book and the failure is reported. |
+| `calendar_invite` | A short link that opens Google Calendar with the event filled in and every email typed in the conversation as an invitee. The guest presses Save and Google sends the invitations from their account. The agent never writes to anybody's calendar. The same link is attached automatically after any booking. |
+| `make_playlist` | The model picks 12 to 18 well known tracks for the vibe. Each becomes a link that opens it in Spotify, on the event page. No Spotify account or API key is involved. |
+| `make_invitation` | A designed, shareable page at `/e/<id>`: venue photo, when and where, the lineup, calendar buttons and the playlist, with preview tags so the link unfurls as a card in iMessage. It also serves `/e/<id>.ics` for Apple Calendar and Outlook. |
+
+Privacy rules: the invitation page is public, so it never shows a price, an email, a booking reference or a payment link, and its calendar button invites nobody.
+Only the short `/c/<id>` link sent to the person booking carries the invitees, and only emails someone typed in the conversation are ever included.
+
+Links the agent hands out need a public address.
+`PUBLIC_URL` sets it; without it the server learns it from incoming requests, but only from hosts it trusts (localhost, `trycloudflare.com`, ngrok), because a Host header is attacker-controlled.
+Pages and calendar links live in memory, like sessions, and are lost on a restart.
+
+## Live stage
+
+The same live panels appear in two places.
+On the front page `/` they sit beside the chat and show that one conversation only, so a visitor sees the plan, the quote, the ticket and the agent's own activity while they talk to it.
+`/stage.html` is the big-screen view: read-only, meant for a projector or a second screen during a demo.
+The old `/stage/`, `/chat` and `/chat.html` addresses redirect.
+The big-screen view follows whichever conversation spoke last, on any channel: the web chat, an iMessage thread, or the judges' test runs.
+
+It shows the plan as the agent understands it (city, headcount, date, venue, all-in total), the latest message, the options the agent just offered, the quote waiting for a yes with its line items, the booking ticket with its real status, and an activity feed.
+The feed is the point: every sandbox lookup, every quote, every booking, every honest "no" from the sandbox, and every time a code-level gate held a write back.
+
+How it works:
+
+- `agent/stage.js` is the only thing the brain knows about it.
+  The brain calls `stage.heard`, `stage.thinking`, `stage.tool`, `stage.held` and `stage.replied` at the moments that matter.
+  Narration can never affect a turn: every entry point swallows its own errors.
+- `GET /events` streams those events as server-sent events.
+  A page that opens mid-conversation first gets the last 80 events replayed, flagged so it skips its animations.
+- The page is public on a public URL and shows strangers' conversations, so events are scrubbed before they leave the server.
+  Emails, phone numbers and payment links are masked, speakers are "Guest", and a booking event never carries the guest's name, email or payment URL.
+- There is no mock data and no build step.
+  Without a conversation the stage simply waits.
+
+The frontend started from the `plec-imessage/web` prototype on the `tony/imessage-agent` branch.
+Its orb, hero, activity feed, booking ticket and confetti were kept.
+Everything that had no counterpart in this agent was dropped: the scripted demo player and its playback controls, the votes and who-is-in grids, the calendar card, the guest-of-honor logic, the over-capacity card, the mock venue table and the phone view (the web chat is the real chat).
+Typography and palette follow the chat page: Bricolage Grotesque for headings, Livvic for body text, PLEC coral and navy, with the emblem's confetti colors as accents.
+
 ## The catalogue
 
 92 listings: 60 venues and 32 services.
@@ -386,13 +435,20 @@ agent/guards.js           Consent gates for writes, city aliases, search default
 agent/consent.js          Reads a yes, a no or a hold-off out of a message, in English and Spanish.
 agent/parts.js            Cards, images, payment links, money formatting.
 agent/catalogue.js        Listing name lookup and bookability screening from the offline copy.
+agent/extras.js           Whole-event packages, calendar invites, playlist and invitation tools, built on runTool.
+agent/eventpage.js        Invitation pages, .ics files, Google Calendar and Spotify links.
+agent/origin.js           The public address used in links, learned only from trusted hosts.
+agent/stage.js            Narrates turns as display events for the live stage, masks private data, serves GET /events.
 agent/imessage.js         Optional iMessage channel on Photon's Spectrum Cloud.
 agent/imessage-policy.js  Pure iMessage rules: what to ignore, when to speak in a group, which bubbles go out.
 agent/env.js              Shared .env reader.
 agent/plec.js             Sandbox client, tool definitions, callTool router.
 agent/llm.js              chatCompletion() against any OpenAI-compatible endpoint.
 agent/session.js          In-memory per-session store and the per-session turn lock.
-chat/index.html           Chat UI in one file.
+chat/index.html           The front page: the chat (app.js, app.css) with live panels for that conversation.
+chat/stage.html           The big-screen view that follows every channel.
+chat/stage.js, stage.css  The live panels and the shared design tokens, used by both pages.
+chat/imessage.html        Self-serve iMessage sign-up.
 python/echo_server.py     The same contract in stdlib Python.
 tests/run.js              Runs the public scenarios and prints a report.
 tests/unit.js             Offline tests for the gates and the parts builder.

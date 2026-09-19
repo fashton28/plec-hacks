@@ -1,0 +1,84 @@
+<!doctype html>
+<!--
+  PLEC live stage: a read-only view of what the agent is doing right now, for a
+  projector or a second screen. It listens to GET /events (agent/stage.js) and
+  follows whichever conversation spoke last, on any channel. The front page
+  (index.html) is the chat itself, with these same panels for one conversation.
+  No build step, no mock data.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>PLEC Concierge, live stage</title>
+<link rel="icon" href="emblem.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Livvic:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="stage.css" />
+</head>
+<body>
+<div class="wash" aria-hidden="true"></div>
+
+<header class="topbar">
+  <a class="brand" href="./">
+    <span class="emblem"><img src="emblem.svg" alt="" /></span>
+    <span class="brand-text"><b>PLEC Concierge</b><small>Live stage</small></span>
+  </a>
+  <div class="live-pill" id="live-pill"><i class="dot"></i><span id="live-text">Connecting</span></div>
+  <a class="chat-cta" href="./">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>
+    Chat with PLEC
+  </a>
+  <div class="status">
+    <div class="status-text"><b id="status-main">Listening</b><span id="status-sub">checked the sandbox 0 times, held back 0 times</span></div>
+    <div class="orb live" style="--s:44px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>
+  </div>
+</header>
+
+<main class="stage">
+  <section class="hero card">
+    <div class="hero-left">
+      <div class="label">Planning</div>
+      <h1 class="hero-title" id="hero-title">Listening for a plan</h1>
+    </div>
+    <div class="hero-count">
+      <div class="label">Guests</div>
+      <div class="big num" id="guests">0</div>
+    </div>
+    <div class="chips">
+      <div class="chip"><span class="ic c-violet"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span><div><small>Date</small><b id="chip-date">Not set</b></div></div>
+      <div class="chip"><span class="ic c-brand"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span><div><small>Venue</small><b id="chip-venue">Not picked</b></div></div>
+      <div class="chip"><span class="ic c-orange"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16 15h2"/></svg></span><div><small>All-in total</small><b id="chip-total" class="num">No quote yet</b></div></div>
+    </div>
+    <div class="orb live hero-orb" style="--s:112px"><div class="orb-body"><div class="orb-swirl"></div><div class="orb-ribbon"></div></div><div class="orb-ring"></div></div>
+  </section>
+
+  <section class="latest card" aria-live="polite">
+    <span class="latest-label">Latest in the chat</span>
+    <div class="latest-msg" id="latest"><span class="latest-empty">Waiting for someone to say hi</span></div>
+  </section>
+
+  <section class="booking" id="booking"></section>
+
+  <section class="options" id="options" hidden></section>
+
+  <aside class="rail card">
+    <div class="card-head"><h2 class="card-title">Activity</h2><span class="card-sub">what PLEC did, and what it held back</span></div>
+    <div class="feed" id="feed"><div class="feed-empty">Every lookup, quote and booking shows up here as it happens.</div></div>
+  </aside>
+</main>
+
+<!-- The way into iMessage. Deliberately loud: a Messages-blue bubble that breathes, with a label that introduces itself. -->
+<a class="text-me" href="imessage.html" aria-label="Text PLEC on iMessage">
+  <span class="text-me-label"><b>Text me on iMessage</b><small>same PLEC, right in your Messages</small></span>
+  <span class="text-me-bubble">
+    <i class="ping"></i><i class="ping late"></i>
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5C9.4 5 4 9.5 4 15.1c0 3.2 1.8 6.1 4.6 7.9-.2 1.5-.9 3-2 4.2 2.4-.2 4.6-1.1 6.3-2.5 1 .2 2 .3 3.1.3 6.6 0 12-4.5 12-10.1S22.6 5 16 5z"/></svg>
+    <span class="dots"><i></i><i></i><i></i></span>
+  </span>
+</a>
+
+<script src="stage.js"></script>
+</body>
+</html>

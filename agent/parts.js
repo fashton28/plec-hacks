@@ -89,6 +89,9 @@ export function buildParts(rawText, turn, state) {
   if (turn.quotes.length === 1 && !amountAppears(text, turn.quotes[0].totalCents)) {
     text += `\nAll in, that comes to ${formatCents(turn.quotes[0].totalCents)}, service fee included.`;
   }
+  if (turn.packageTotalCents && !amountAppears(text, turn.packageTotalCents)) {
+    text += `\nAll in for the whole package, that comes to ${formatCents(turn.packageTotalCents)}.`;
+  }
   for (const ref of turn.bookingRefs) if (!text.toUpperCase().includes(ref)) text += `\nYour reference is ${ref}, hang on to it.`;
   for (const payment of turn.payments) if (!text.includes(payment.url)) text += `\nHere's the link to pay and lock in ${payment.ref}: ${payment.url}`;
 
@@ -129,6 +132,8 @@ export function buildParts(rawText, turn, state) {
   }
 
   for (const payment of turn.payments) parts.push({ kind: 'link', label: `Pay to confirm ${payment.ref}`, url: payment.url });
+  // Calendar invite, invitation page, playlist: short links of our own, shown as buttons.
+  for (const link of turn.links ?? []) parts.push({ kind: 'link', label: link.label, url: link.url });
   return turn.imessage ? dropRepeatedCards(parts, turn, state) : parts;
 }
 
