@@ -1,0 +1,15 @@
+{
+  "name": "plec-imessage",
+  "private": true,
+  "type": "module",
+  "description": "PLEC group-chat iMessage agent: lives in a friend group chat, keeps a living plan, books the venue.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/index.js",
+    "sim": "node scripts/sim-cli.js",
+    "demo": "node scripts/replay-demo.js",
+    "demo:fast": "node scripts/replay-demo.js --fast",
+    "test:tools": "node scripts/test-tools.js",
+    "eval": "node scripts/eval-extract.js"
+  }
+}

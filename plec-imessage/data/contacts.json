@@ -1,0 +1,8 @@
+{
+  "_comment": "phone (E.164) -> display name for demo participants. Placeholder 555 numbers: replace with real ones for the live demo.",
+  "+15550100001": "Tony",
+  "+15550100002": "Dani",
+  "+15550100003": "Marcus",
+  "+15550100004": "Priya",
+  "+15550100005": "Sofia"
+}
