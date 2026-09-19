@@ -8,7 +8,7 @@ Branch: `tony/imessage-agent`.
 ## Status
 - [x] Phase 0: recon, branch
 - [x] Phase 1: scaffold, state snapshot, simulator provider, CLI simulator, `/health`
-- [ ] Phase 2: mock data + tools
+- [x] Phase 2: mock data + tools (`npm run test:tools`, add `-- --sandbox` for live PLEC sandbox)
 - [ ] Phase 3: the brain
 - [ ] Phase 4: real iMessage provider
 - [ ] Phase 5: /sim, /dashboard, screenshots, surprise guard
@@ -35,3 +35,14 @@ None so far.
 ## Integration interface (for the teammate)
 - `GET /health` returns `{ ok, provider, venueSource }`
 - `POST /sim/send` takes `{ chatId, from, fromName?, text, attachments?: [{url, mimeType}] }` and injects a group-chat message into the pipeline.
+
+## Venue data: two sources (`VENUE_SOURCE`)
+- `mock` (default, the demo path): `data/venues.json` has 15 invented Philadelphia venues. Demo-critical ones:
+  - `kiln-loft-fishtown`: 50 standing, step-free, $1,650 for 4h, blocked Oct 17. The group's natural pick.
+  - `brightwater-hall-nolibs`: 90 standing, 6 min away, open Oct 25, exactly +$300. The over-capacity fix.
+  - `halcyon-rooftop-rittenhouse`: gorgeous, 22:00 curfew. Triggers the "you wanted to dance" warning.
+  - `ironworks-loft-oldcity`: great loft, third-floor walk-up. Excluded for Priya's grandma.
+  - `magnolia-garden-queenvillage` (covered pavilion) vs `wildflower-yard-kensington` (no cover, gravel).
+  - `corner-room-southphilly` ($650) and `osteria-private-room-passyunk` ($850) are the budget picks.
+- `sandbox`: the same tools against PLEC's hosted catalogue (`src/tools/sandboxClient.js`, copied from `agent/plec.js`). Bookings there are real sandbox bookings with a Checkout link: the agent sends the link and says it confirms on payment. It needs an organizer email, taken from chat or `ORGANIZER_EMAIL`. Accessibility is inferred from amenities and description text, otherwise "check with the venue".
+- The mock pricing field is `includedHours` + `extraHour` (a generalization of the prompt's `perHourAfter4`).

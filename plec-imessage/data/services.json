@@ -1,0 +1,10 @@
+[
+  { "id": "catering-tacos", "name": "Taqueria catering (tacos + sides)", "priceModel": "perPerson", "price": 18, "minimumGuests": 20, "leadTimeDays": 5, "description": "Build-your-own taco bar, two proteins, rice, beans, chips and salsa." },
+  { "id": "catering-classic", "name": "Classic buffet catering", "priceModel": "perPerson", "price": 32, "minimumGuests": 25, "leadTimeDays": 7, "description": "Two entrees, three sides, salad, bread, staff to serve." },
+  { "id": "catering-premium", "name": "Premium plated dinner", "priceModel": "perPerson", "price": 65, "minimumGuests": 20, "leadTimeDays": 14, "description": "Three courses, plated, with servers." },
+  { "id": "dj-4h", "name": "DJ (4 hours)", "priceModel": "flat", "price": 550, "leadTimeDays": 7, "description": "DJ with speakers and lights, takes requests." },
+  { "id": "photographer-3h", "name": "Photographer (3 hours)", "priceModel": "flat", "price": 450, "leadTimeDays": 7, "description": "Candid coverage, 150+ edited photos in a week." },
+  { "id": "bartender", "name": "Licensed bartender (4 hours)", "priceModel": "flat", "price": 300, "leadTimeDays": 3, "description": "Required at most BYOB venues. Bring your own drinks." },
+  { "id": "decor-package", "name": "Birthday decor package", "priceModel": "flat", "price": 275, "leadTimeDays": 5, "description": "Balloon garland, table florals, a neon sign with the guest of honor's name." },
+  { "id": "custom-cake", "name": "Custom cake (serves 50)", "priceModel": "flat", "price": 220, "leadTimeDays": 7, "description": "Two tiers, any flavor, name and age on top." }
+]
