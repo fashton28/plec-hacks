@@ -48,6 +48,7 @@ label reads **LIVE**. If `/events` doesn't answer within 1.5s, it plays the mock
 | `pending` | PendingAction or `null` | `create_booking` → confirm card; `modify_booking` → over-capacity card |
 | `booking` | Booking | ticket, confetti, "Booked"/"Moved to" row |
 | `calendar` | `{ bookingId, status, linksOnly, items, guestOfHonor }` (no emails) | Calendar card: mini timeline, Proposed/Sent/Updated pill, guest of honor "not invited 🤫" |
+| `playlist` | `{ playlist: { name, url, status, fallback, songs: [{ title, artist, addedBy, durationMs }], vetoes } }` | Party playlist card (takes the Votes slot): cover, name, count + length, last 6 songs with who added them, "Vetoed" pills |
 | `llm_call` | — | orb thinking pulse |
 | `state_reset` | — | clears the stage |
 

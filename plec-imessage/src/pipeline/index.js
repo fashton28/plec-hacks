@@ -13,6 +13,7 @@ import { runWatchers } from './watchers.js';
 import { respond } from './respond.js';
 import { handleCommand } from './commands.js';
 import { recordVote } from './votes.js';
+import { handlePlaylistBatch } from '../tools/playlist.js';
 import { log } from '../log.js';
 
 const pending = new Map();   // chatId -> { messages, mentioned, votes }
@@ -52,10 +53,10 @@ export async function handleInbound(messages) {
   for (const raw of messages) {
     const result = ingest(raw);
     if (!result) continue;
-    const { chat, message, firstInChat } = result;
+    const { chat, message, firstInChat, emailShared } = result;
     if (firstInChat && !chat.introduced) await introduce(chat);
 
-    const cmd = await handleCommand(chat, message, { respond: (c, o) => safeRespond(c, o, true), reExtract });
+    const cmd = await handleCommand(chat, message, { respond: (c, o) => safeRespond(c, o, true), reExtract, emailShared });
     if (cmd === 'handled') {
       if (chat.optedOut) chat.transcript = chat.transcript.filter((m) => m.id !== message.id); // opted out: don't keep what we didn't need to read
       save();
@@ -74,10 +75,22 @@ export async function handleInbound(messages) {
 }
 
 async function runBatch(chatId) {
-  const { messages: batch, mentioned, vote } = take(chatId);
-  if (!batch.length) return;
+  const { messages: burst, vote } = take(chatId);
+  if (!burst.length) return;
   const chat = getChat(chatId);
   if (chat.optedOut) return;
+
+  // Playlist asks in this burst get handled together, with one combined confirmation.
+  let batch = burst;
+  try {
+    batch = await handlePlaylistBatch(chat, burst, sendBubbles);
+  } catch (err) {
+    log('💥', chatId, `playlist failed: ${err.stack || err.message}`);
+    await sendBubbles(chat, ['one sec, the playlist glitched. say that again?']);
+    return;
+  }
+  if (!batch.length) return;
+  const mentioned = batch.some((m) => isMention(chat, m));
 
   let suggestion;
   const onlyVotes = vote && batch.every((m) => /\d/.test(m.text) && m.text.length < 25);

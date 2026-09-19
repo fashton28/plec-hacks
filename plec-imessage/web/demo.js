@@ -138,11 +138,42 @@
   push(300, 'typing', {});
   push(1300, 'agent_message', { text: 'done ✅ The Kiln Loft, Sun Oct 25 7pm-11pm for 45. ref PB-1001' });
   push(600, 'agent_message', { text: '$495 deposit due to hold it, $1,650 total' });
-  push(600, 'agent_message', { text: "want this on your calendars? reply with your email and I'll send invites 📅" });
+  push(600, 'agent_message', { text: "want this on your calendars? reply with your email and I'll send invites 📅\nwant a party playlist? I'll start one based on what Sofia loves. just text me songs to add 🎶" });
+  push(100, 'playlist', { playlist: { name: null, url: null, fallback: false, status: 'offered', songs: [], vetoes: [] } });
   say('Dani', 'AHHH its happening 🎉', 2200);
-  say('Marcus', "i'll handle the playlist obviously", 1500);
   say('Dani', 'i can come early to help decorate 🎈', 1500);
   quiet('celebrating, nothing to do');
+
+  // 5a. Party playlist: anyone says yes, PLEC seeds it, the group adds by text (tools/playlist.js)
+  const mix = { name: 'Sunday night 🎶', url: 'https://open.spotify.com/playlist/demo', fallback: false, status: 'live', songs: [], vetoes: [] };
+  const track = (title, artist, secs, addedBy = 'PLEC') => ({ title, artist, durationMs: secs * 1000, addedBy });
+  const playlist = (delay = 400) => push(delay, 'playlist', { playlist: clone(mix) });
+  mix.songs = [
+    track('Put Your Records On', 'Corinne Bailey Rae', 215), track('Electric Feel', 'MGMT', 229), track('Valerie', 'Mark Ronson, Amy Winehouse', 219),
+    track('Before He Cheats', 'Carrie Underwood', 199), track('Toxic', 'Britney Spears', 199), track('Crazy In Love', 'Beyoncé, JAY-Z', 236),
+    track('Hey Ya!', 'Outkast', 250), track('SexyBack', 'Justin Timberlake', 242), track('Since U Been Gone', 'Kelly Clarkson', 188),
+    track('Yeah!', 'Usher, Lil Jon, Ludacris', 250), track('Poker Face', 'Lady Gaga', 237), track('Hollaback Girl', 'Gwen Stefani', 199),
+    track('Levitating', 'Dua Lipa', 203), track('Mr. Brightside', 'The Killers', 222), track('Love Story', 'Taylor Swift', 235),
+  ];
+  say('Marcus', 'yesss playlist 🎶 sofia loves 2000s pop', 1500);
+  push(300, 'typing', {});
+  playlist(2200);
+  push(600, 'agent_message', { text: 'here\'s the start for Sofia\'s 30th (it\'s called "Sunday night 🎶" so Sofia can\'t spot it 🤫): https://open.spotify.com/playlist/demo' });
+  push(700, 'agent_message', { text: '15 songs: chill arrivals, dance peak, singalongs at the end. text me songs to add anytime, like "plec add Espresso" 🎶' });
+  say('Dani', 'plec add Espresso', 2000);
+  mix.songs.push(track('Espresso', 'Sabrina Carpenter', 175, 'Dani'));
+  playlist(1600);
+  push(300, 'agent_message', { text: 'added Espresso by Sabrina Carpenter for Dani 🎶' });
+  say('Marcus', 'plec add some Bad Bunny', 1800);
+  say('Priya', 'plec add dancing queen', 900);
+  mix.songs.push(track('Tití Me Preguntó', 'Bad Bunny', 243, 'Marcus'), track('Me Porto Bonito', 'Bad Bunny, Chencho Corleone', 178, 'Marcus'), track('Dancing Queen', 'ABBA', 231, 'Priya'));
+  playlist(2000);
+  push(300, 'agent_message', { text: 'added 3: 2 Bad Bunny songs (Marcus), Dancing Queen (Priya) 🎶' });
+  say('Priya', 'plec no country', 1800);
+  mix.songs = mix.songs.filter((x) => x.title !== 'Before He Cheats');
+  mix.vetoes = ['country'];
+  playlist(1300);
+  push(300, 'agent_message', { text: 'no country, got it 🚫 took off Before He Cheats' });
 
   // 5b. Calendar: opt in by email, Tony confirms, invites go out (server code, like bookings)
   say('Dani', 'd•••@gmail.com', 1800);

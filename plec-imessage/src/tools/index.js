@@ -4,6 +4,8 @@
  */
 import { searchVenues, getVenueDetails, checkAvailability, getQuote, listServices } from './venues.js';
 import { proposeBooking, proposeModification, proposeCancellation, listBookings } from './bookings.js';
+import { proposeItinerary, syncItinerary } from './calendar.js';
+import { createPartyPlaylist, addSongs, removeOrVeto, getPlaylistSummary } from './playlist.js';
 
 const fn = (name, description, properties, required = []) => ({
   type: 'function',
@@ -47,6 +49,19 @@ export const TOOL_DEFS = [
   }, ['bookingId', 'changes']),
   fn('propose_cancellation', 'Propose cancelling a booking; the summary includes refund terms. The organizer must confirm.', { bookingId: str('booking id') }, ['bookingId']),
   fn('list_bookings', 'Bookings for this chat.', {}),
+  fn('propose_itinerary', 'After a booking: build the calendar itinerary (setup, vendors, arrival, party, deadlines, cleanup), each event only for the people it concerns, and create a pending confirmation. NEVER sends: returns the summary to show the organizer, who replies yes. Only people who replied with their email get invites; the guest of honor of a surprise never does.', {
+    bookingId: str('booking id; defaults to the active booking'),
+    volunteers: strArr('names of people who offered to help set up / clean up'),
+    decoyEmail: str('ONLY if the organizer asked for a decoy event for the guest of honor of a surprise: their email'),
+    decoyTitle: str('decoy event title, e.g. "Dinner with Tony". Never mention the party'),
+  }),
+  fn('sync_itinerary', 'Re-sync calendar events with the current booking (time, venue, headcount, attendees). Runs automatically after booking changes; call it only if someone reports their calendar is out of date.', { bookingId: str('booking id') }),
+  fn('create_party_playlist', 'After a booking, once anyone in the group says yes to a playlist: create it (surprise-safe title), seed ~15 songs that fit the plan, and return the link + seed list. Not risky: no organizer confirmation needed.', {}),
+  fn('add_songs', 'Add songs people asked for. Each request is the raw ask ("Espresso", "some Bad Bunny", "mr brightside") plus who asked. Returns added (credit them by name), ambiguous (ask their question once), notFound (say so, never guess), duplicates and vetoed.', {
+    requests: { type: 'array', items: { type: 'object', properties: { text: str('what they asked for'), requestedBy: str('first name of who asked') }, required: ['text', 'requestedBy'], additionalProperties: false }, description: 'every song request in this batch' },
+  }, ['requests']),
+  fn('remove_or_veto', 'Remove a song ("remove that" = the last song someone added, "remove Espresso") or save a veto rule ("no country", "no Drake") that also removes matching songs and blocks future ones.', { text: str('the ask, e.g. "remove that" or "no country"'), requestedBy: str('first name') }, ['text']),
+  fn('get_playlist_summary', 'Playlist link, song count, total length, last 5 added with who added them, vetoes.', {}),
   fn('send_messages', 'FINAL tool: send your iMessage reply and end the turn. 1-3 short plain-text bubbles.', {
     bubbles: strArr('1-3 plain text bubbles, no markdown'),
     shortlist: strArr('ONLY when you just proposed numbered venue options: their venue ids in the exact order you numbered them (1, 2, 3)'),
@@ -68,6 +83,15 @@ export async function runTool(name, args, chat) {
       case 'propose_modification': return await proposeModification(chat, args);
       case 'propose_cancellation': return await proposeCancellation(chat, args);
       case 'list_bookings': return listBookings(chat);
+      case 'propose_itinerary': return await proposeItinerary(chat, args);
+      case 'sync_itinerary': {
+        const r = await syncItinerary(chat, args);
+        return { ok: r.ok, skipped: !!r.skipped, note: r.bubbles.length ? `synced; tell the group: ${r.bubbles[0]}` : 'nothing on anyone\'s calendar yet' };
+      }
+      case 'create_party_playlist': return await createPartyPlaylist(chat);
+      case 'add_songs': return await addSongs(chat, args);
+      case 'remove_or_veto': return await removeOrVeto(chat, args);
+      case 'get_playlist_summary': return getPlaylistSummary(chat);
       default: return { error: 'unknown_tool', name };
     }
   } catch (err) {

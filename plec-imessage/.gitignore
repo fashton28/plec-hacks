@@ -4,3 +4,4 @@ data/state.json
 data/state.json.tmp
 dist/
 *.log
+data/spotify-token.json

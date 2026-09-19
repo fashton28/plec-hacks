@@ -2,7 +2,7 @@
   "title": "Sofia's surprise 30th",
   "chatId": "demo-sofia-30",
   "people": { "Tony": "+15550100001", "Dani": "+15550100002", "Marcus": "+15550100003", "Priya": "+15550100004" },
-  "notes": "pause=true ends a burst (replay waits for the pipeline). {{vote:<venueId>}} becomes that venue's number in the agent's shortlist; {{vote:other}} is the first other option.",
+  "notes": "pause=true ends a burst (replay waits for the pipeline). {{vote:<venueId>}} becomes that venue's number in the agent's shortlist; {{vote:other}} is the first other option. Emails after the booking opt people in to calendar invites (example.com here; real ones live).",
   "steps": [
     { "from": "Tony", "text": "ok team. sofia's 30th. SURPRISE party. I'm organizing, added plec to help us book a place", "expect": "intro" },
     { "from": "Dani", "text": "OMG yes finally" },
@@ -42,11 +42,21 @@
     { "from": "Tony", "text": "yes book it", "pause": true, "expect": "booked by server code" },
 
     { "from": "Dani", "text": "AHHH its happening 🎉" },
-    { "from": "Marcus", "text": "i'll handle the playlist obviously", "pause": true, "expect": "silent" },
+    { "from": "Marcus", "text": "yesss playlist 🎶 sofia loves 2000s pop", "pause": true, "expect": "playlist created (surprise-safe title), ~15 seeds + link" },
+    { "from": "Dani", "text": "plec add Espresso", "pause": true, "expect": "added Espresso by Sabrina Carpenter for Dani" },
+    { "from": "Marcus", "text": "plec add some Bad Bunny" },
+    { "from": "Priya", "text": "plec add dancing queen", "pause": true, "expect": "ONE message: 2 Bad Bunny songs (Marcus), Dancing Queen (Priya)" },
+    { "from": "Priya", "text": "plec no country", "pause": true, "expect": "veto confirmed, country songs removed" },
+    { "from": "Dani", "text": "i can come early to help decorate 🎈", "pause": true, "expect": "silent (Dani goes on the setup event)" },
+
+    { "from": "Dani", "text": "dani@example.com" },
+    { "from": "Marcus", "text": "marcus@example.com" },
+    { "from": "Priya", "text": "priya@example.com", "pause": true, "expect": "acks + itinerary summary (Sofia gets nothing), asks Tony" },
+    { "from": "Tony", "text": "yes send them", "pause": true, "expect": "invites sent by server code (links + .ics if Google isn't configured)" },
 
     { "from": "Priya", "text": "update: my cousins are coming, +8", "pause": true, "expect": "over-capacity alert + proposed switch" },
 
-    { "from": "Tony", "text": "switch it", "pause": true, "expect": "switched by server code" },
+    { "from": "Tony", "text": "switch it", "pause": true, "expect": "switched by server code + calendar updated with the new spot" },
 
     { "from": "Tony", "text": "plec what's the plan", "pause": true, "expect": "crisp recap" }
   ]

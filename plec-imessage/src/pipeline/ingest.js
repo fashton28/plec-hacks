@@ -20,6 +20,27 @@ export function contactName(phone) {
   return contacts[phone] || contacts[normPhone(phone)];
 }
 
+const EMAIL_IN_TEXT = /[^\s@<>(),;:"']+@[^\s@<>(),;:"']+\.[a-z]{2,}/i;
+const maskEmail = (e) => e.replace(/^(.)[^@]*/, '$1•••');
+
+/**
+ * Calendar opt-in: after PLEC offered invites, an email in a message counts as
+ * consent. It is kept only on the participant (runtime state), and redacted from
+ * the transcript and the stage so it's used for this group's invites and nothing else.
+ */
+function captureEmail(chat, p, message) {
+  const cal = chat.calendar;
+  if (!cal?.offeredAt || Date.now() - cal.offeredAt > 48 * 3600 * 1000 || cal.status === 'cancelled') return null;
+  const goh = chat.plan.guestOfHonor?.split(/\s+/)[0].toLowerCase();
+  if (chat.plan.isSurprise && goh && p.name?.split(/\s+/)[0].toLowerCase() === goh) return null; // never opt in the guest of honor
+  const m = message.text.match(EMAIL_IN_TEXT);
+  if (!m) return null;
+  const email = m[0].replace(/[.,!?]+$/, '').toLowerCase();
+  p.email = email;
+  message.text = message.text.replace(m[0], '[shared email for invites]');
+  return { name: p.name, masked: maskEmail(email), rest: message.text.replace('[shared email for invites]', '').trim() };
+}
+
 const ORGANIZER_RE = /\b(i'?m|i am) (the one )?(organi[sz]ing|booking|paying|planning)|\bi'?ll (pay|book|organi[sz]e|handle the booking)|\bi'?m (the )?organi[sz]er\b/i;
 
 /** The organizer: DEMO_ORGANIZER_PHONE, else who declared it, else the first sender. */
@@ -45,7 +66,7 @@ function upsertParticipant(chat, message) {
 
 /**
  * @param {import('../types.js').InboundMessage} message
- * @returns {{ chat: import('../types.js').ChatState, message: import('../types.js').InboundMessage, firstInChat: boolean } | null}
+ * @returns {{ chat: import('../types.js').ChatState, message: import('../types.js').InboundMessage, firstInChat: boolean, emailShared: { name: string, masked: string, rest: string } | null } | null}
  */
 export function ingest(message) {
   if (!message || !message.chatId || !message.from) return null;
@@ -63,11 +84,13 @@ export function ingest(message) {
   message.attachments = message.attachments || [];
   const firstInChat = chat.transcript.filter((m) => m.from !== 'agent').length === 0 && !chat.introduced;
 
-  upsertParticipant(chat, message);
+  const participant = upsertParticipant(chat, message);
+  const emailShared = captureEmail(chat, participant, message);
   appendTranscript(chat, message);
   chat.messagesSinceAgentSpoke += 1;
   save();
-  emit('inbound', chat.chatId, { id: message.id, from: message.from, fromName: message.fromName, text: message.text, attachments: message.attachments.map((a) => ({ mimeType: a.mimeType, url: a.url.startsWith('data:') ? a.url : '' })) });
+  emit('inbound', chat.chatId, { id: message.id, from: message.from, fromName: message.fromName, text: emailShared ? message.text.replace('[shared email for invites]', emailShared.masked) : message.text, attachments: message.attachments.map((a) => ({ mimeType: a.mimeType, url: a.url.startsWith('data:') ? a.url : '' })) });
   log('📥', chat.chatId, `${message.fromName}: ${message.text.slice(0, 120)}${message.attachments.length ? ` [+${message.attachments.length} attachment]` : ''}`);
-  return { chat, message, firstInChat };
+  if (emailShared) log('📅', chat.chatId, `${emailShared.name} opted in to calendar invites`);
+  return { chat, message, firstInChat, emailShared };
 }

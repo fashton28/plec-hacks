@@ -31,10 +31,14 @@ html, body { height: 100%; overflow: hidden; }
   grid-template-areas: "hero hero rail" "latest insight rail" "whos votes rail" "book book rail";
 }
 .brain.has-cal { grid-template-areas: "hero hero rail" "latest insight rail" "whos votes rail" "book book cal"; }
+/* Once the playlist exists the vote is long settled: the playlist takes the votes slot. */
+.brain.has-music { grid-template-areas: "hero hero rail" "latest insight rail" "whos music rail" "book book rail"; }
+.brain.has-cal.has-music { grid-template-areas: "hero hero rail" "latest insight rail" "whos music rail" "book book cal"; }
+.brain.has-music .votes-card { display: none; }
 /* The rail no longer spans the flexible last row, so stop its feed from stretching the auto rows. */
 .brain.has-cal .rail { contain: size; overflow: hidden; }
 .hero { grid-area: hero; } .latest { grid-area: latest; } .insight { grid-area: insight; } .cal-card { grid-area: cal; }
-.whos { grid-area: whos; } .votes-card { grid-area: votes; } .booking { grid-area: book; } .rail { grid-area: rail; }
+.music-card { grid-area: music; } .whos { grid-area: whos; } .votes-card { grid-area: votes; } .booking { grid-area: book; } .rail { grid-area: rail; }
 
 .card { background: var(--card); border: 1px solid var(--hairline); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 18px 20px; min-width: 0; }
 .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
@@ -209,6 +213,31 @@ html, body { height: 100%; overflow: hidden; }
 #stage > .controls:hover { opacity: 1; }
 #stage > .view-link { position: absolute; left: 32px; bottom: 8px; z-index: 5; opacity: .6; }
 
+/* Party playlist */
+.music-card { display: flex; flex-direction: column; min-height: 0; overflow: hidden; animation: rise .45s var(--ease) both; }
+.music-card[hidden] { display: none; }
+.music-card .card-head { margin-bottom: 12px; }
+.music-pill { font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: var(--pill); background: var(--t-green); color: var(--ok); }
+.music-pill.fallback { background: var(--t-yellow); color: #B9820F; }
+.music-pill.offered { background: var(--t-violet); color: var(--c-violet); }
+.music-head { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.cover { width: 52px; height: 52px; flex: none; border-radius: 16px; display: grid; place-items: center; color: #fff; box-shadow: 0 6px 16px -8px rgba(123,63,228,.45);
+  background: radial-gradient(circle at 25% 20%, #FBE0D4 0 22%, transparent 52%), radial-gradient(circle at 80% 85%, #C9B0F4 0 25%, transparent 60%), linear-gradient(135deg, #F7C6B5, #E9C9DC 50%, #CBB8F2); }
+.cover svg { filter: drop-shadow(0 2px 4px rgba(90,40,120,.3)); }
+.music-head b { display: block; font-size: 18px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.music-head span { font-size: 13px; color: var(--muted); font-weight: 600; }
+.songs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; min-height: 0; overflow: hidden; }
+.song { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 12px; background: var(--canvas); }
+.song.new { animation: slide-in .5s var(--spring) both; }
+.song b { display: block; font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.song span { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.song .av { width: 24px !important; height: 24px !important; font-size: 11px; }
+.vetoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.vetoes span { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: var(--pill); background: var(--t-red); color: var(--c-red); }
+.music-empty { font-size: 14px; color: var(--muted); }
+@keyframes slide-in { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .song.new { animation: none; } }
+
 /* ---------- Tablet & phone: stacked, readable, scrollable ---------- */
 @media (max-width: 1099px) {
   html, body { height: auto; overflow: auto; }
@@ -250,6 +279,7 @@ html, body { height: 100%; overflow: hidden; }
   .alt { flex-wrap: wrap; }
   .alt .delta { margin-left: 72px; text-align: left; }
   .rail { height: 560px; flex: none; }
+  .songs { grid-template-columns: minmax(0, 1fr); }
   #stage > .controls { position: fixed; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); opacity: 1; }
   #stage > .view-link { position: fixed; left: 12px; bottom: calc(env(safe-area-inset-bottom) + 12px); opacity: 1; }
 }

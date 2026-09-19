@@ -26,7 +26,9 @@ export function splitLong(text, max = MAX_BUBBLE) {
   let rest = text.trim();
   while (rest.length > max) {
     const window = rest.slice(0, max);
-    let cut = Math.max(window.lastIndexOf('\n'), ...['. ', '! ', '? '].map((s) => { const i = window.lastIndexOf(s); return i >= 0 ? i + 1 : -1; }));
+    // Prefer a line break (keeps list items whole), then a sentence end.
+    let cut = window.lastIndexOf('\n');
+    if (cut < max * 0.4) cut = Math.max(cut, ...['. ', '! ', '? '].map((s) => { const i = window.lastIndexOf(s); return i >= 0 ? i + 1 : -1; }));
     if (cut < max * 0.4) cut = window.lastIndexOf(' ');
     if (cut <= 0) cut = max;
     out.push(rest.slice(0, cut).trim());

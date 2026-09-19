@@ -15,9 +15,21 @@ export function isTrivial(m) {
   return TRIVIAL.test(m.text.trim());
 }
 
-const MENTION_RE = () => new RegExp(`(^|[^a-z0-9])@?(${['plec', config.agentName].map((s) => s.toLowerCase()).join('|')})([^a-z0-9]|$)`, 'i');
+const names = () => [...new Set(['plec', config.agentName.toLowerCase()])].join('|');
+/**
+ * Direct address only: "@plec", "plec help", "hey plec", "ok. plec help??", "thoughts plec?".
+ * Not a mention: "added plec to help us book".
+ */
+export function isAddressed(text) {
+  const n = names();
+  const t = String(text || '');
+  return new RegExp(`@(${n})\\b`, 'i').test(t)
+    || new RegExp(`(^|[.!?]\\s+|\\b(hey|hi|yo|ok|okay|so|and|pls|please)\\s+)(${n})\\b(?!\\s+(to|is|was|will|can|could|should)\\b)`, 'i').test(t)
+    || new RegExp(`\\b(${n})\\s*([?!,:]|$)`, 'i').test(t);
+}
+
 export function isMention(chat, m) {
-  if (MENTION_RE().test(m.text)) return true;
+  if (isAddressed(m.text)) return true;
   // Direct reply to the agent's last message within 2 minutes (providers that expose threading).
   if (m.replyToId && chat.transcript.some((t) => t.id === m.replyToId && t.from === 'agent') && chat.lastAgentSpokeAt && m.timestamp - chat.lastAgentSpokeAt < 120_000) return true;
   return false;

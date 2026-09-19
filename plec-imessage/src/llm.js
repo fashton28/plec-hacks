@@ -27,7 +27,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function chatCompletion(messages, options = {}) {
   requireLlmKey();
   const model = options.model || config.llm.modelSmart;
-  const body = { model, messages, temperature: options.temperature ?? 0.3 };
+  // Kimi k2.x are reasoning models: they reject any temperature but 1 and any tool_choice but auto/none.
+  // So temperature is only sent when LLM_TEMPERATURE is set explicitly (for other providers).
+  const body = { model, messages };
+  if (process.env.LLM_TEMPERATURE) body.temperature = Number(process.env.LLM_TEMPERATURE);
   if (options.tools?.length) {
     body.tools = options.tools;
     body.tool_choice = options.toolChoice ?? 'auto';
@@ -43,7 +46,7 @@ export async function chatCompletion(messages, options = {}) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.llm.apiKey}` },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(90_000),
       });
       text = await response.text();
     } catch (err) {
@@ -56,7 +59,7 @@ export async function chatCompletion(messages, options = {}) {
       let parsed = {};
       try { parsed = JSON.parse(text); } catch { /* not json */ }
       const retryAfter = Number(parsed.retryAfterSeconds) || 0;
-      const transient = ['proxy_busy', 'upstream_error', 'upstream_timeout', 'upstream_unreachable'].includes(parsed.error);
+      const transient = parsed.error === 'proxy_busy' || (['upstream_error', 'upstream_timeout', 'upstream_unreachable'].includes(parsed.error) && response.status !== 400);
       if (response.status === 429 && retryAfter && waited + retryAfter <= maxWaitS) {
         log('⏳', null, `model quota: ${parsed.error}, waiting ${retryAfter}s`);
         emit('llm_wait', null, { seconds: retryAfter, error: parsed.error });
@@ -94,14 +97,14 @@ export function parseArgs(json) {
 }
 
 /**
- * Force a single structured tool call. Tries a named tool_choice first; if
- * the provider refuses that, falls back to "required"/"auto" + instruction,
- * and finally parses JSON out of plain text.
+ * Force a single structured tool call. Named tool_choice only when
+ * LLM_NAMED_TOOL_CHOICE=1 (Kimi refuses it); otherwise "auto", retried once if
+ * the model answers without the call, and JSON is parsed out of plain text.
  */
-let namedChoiceWorks = true;
+let namedChoiceWorks = process.env.LLM_NAMED_TOOL_CHOICE === '1';
 export async function forcedToolCall(messages, tool, options = {}) {
   const name = tool.function.name;
-  const attempts = namedChoiceWorks ? [{ type: 'function', function: { name } }, 'auto'] : ['auto'];
+  const attempts = namedChoiceWorks ? [{ type: 'function', function: { name } }, 'auto'] : ['auto', 'auto'];
   let lastErr;
   for (const choice of attempts) {
     try {
@@ -113,7 +116,7 @@ export async function forcedToolCall(messages, tool, options = {}) {
     } catch (err) {
       lastErr = err;
       if (choice !== 'auto' && err.status === 400 && /tool_choice/i.test(err.body || '')) { namedChoiceWorks = false; continue; }
-      if (err.status !== 400) throw err;
+      throw err;
     }
   }
   throw lastErr;

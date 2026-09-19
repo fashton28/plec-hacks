@@ -46,14 +46,14 @@
   /* ---------- State ---------- */
   let S, instant = false, settleTimer = null;
   function reset() {
-    S = { plan: {}, pending: null, booking: null, cal: null, names: [], spoke: 0, quiet: 0, introduced: false, awaitingSpeech: false, seen: new Set(), prevCells: {} };
+    S = { plan: {}, pending: null, booking: null, cal: null, music: null, names: [], spoke: 0, quiet: 0, introduced: false, awaitingSpeech: false, seen: new Set(), prevCells: {} };
     $('feed').innerHTML = '';
     $('latest').outerHTML = '<div class="latest-msg" id="latest"><span class="latest-empty">Waiting for the group to start talking…</span></div>';
     $('insight').outerHTML = '<div class="txt" id="insight"><small>✦ Quiet insight</small><b>Listening to the group…</b></div>';
     $('guests').textContent = '—'; $('trend').textContent = ''; $('trend').className = 'trend';
     for (const id of ['chip-budget', 'chip-date', 'chip-venue']) $(id).textContent = '—';
     $('votes').dataset.key = ''; $('booking').dataset.html = '';
-    renderHero(); renderWhos(); renderVotes(); renderBooking(); renderCalendar(); renderCounter(); setAgent('listening');
+    renderHero(); renderWhos(); renderVotes(); renderBooking(); renderCalendar(); renderPlaylist(); renderCounter(); setAgent('listening');
   }
   const organizer = () => S.names[0] || 'the organizer';
   const people = () => S.names.filter((n) => n !== S.plan.guestOfHonor);
@@ -106,8 +106,9 @@
     booked: '<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
     issue: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
     cal: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   };
-  const TAG = { quiet: 'Stayed quiet', learned: 'Learned', spoke: 'Spoke', vote: 'Vote', booked: 'Booked', issue: 'Issue', cal: 'Calendar' };
+  const TAG = { quiet: 'Stayed quiet', learned: 'Learned', spoke: 'Spoke', vote: 'Vote', booked: 'Booked', issue: 'Issue', cal: 'Calendar', music: 'Playlist' };
   function activity(kind, text, sub) {
     const row = document.createElement('div');
     row.className = `item k-${kind}`;
@@ -379,6 +380,48 @@
     if (prevLoc && timed.some((i) => i.location !== prevLoc)) glow(card);
   }
 
+  /* ---------- Party playlist ---------- */
+  const NOTE = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>';
+  const songKey = (s) => `${s.title}|${s.artist}`;
+  function totalLength(songs) {
+    const known = songs.every((s) => s.durationMs);
+    const m = Math.round(songs.reduce((a, s) => a + (s.durationMs || 210000), 0) / 60000);
+    return `${known ? '' : '~'}${m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m} min`}`;
+  }
+  function onPlaylist(p) {
+    const prev = S.music;
+    S.music = p;
+    const before = prev?.songs || [], now = p.songs || [];
+    if (p.status === 'live' && prev?.status !== 'live') activity('music', `Started the playlist · ${now.length} songs`, p.fallback ? 'Spotify offline: search links' : 'seeded from the plan');
+    else if (p.status === 'live') {
+      const added = now.filter((s) => !before.some((b) => songKey(b) === songKey(s)));
+      const who = [...new Set(added.map((s) => s.addedBy))];
+      if (added.length) activity('music', added.length === 1 ? `Added ${added[0].title}` : `Added ${added.length} songs`, `for ${who.join(', ')}${added.length > 1 ? ' · one message' : ''}`);
+      const vetoed = (p.vetoes || []).filter((v) => !(prev?.vetoes || []).includes(v));
+      if (vetoed.length) activity('music', `Vetoed ${vetoed.join(', ')}`, 'blocked from future picks');
+    }
+    renderPlaylist(before);
+  }
+  function renderPlaylist(before = []) {
+    const card = $('music-card'), p = S.music;
+    const show = !!(p && p.status === 'live');
+    card.hidden = !show;
+    document.querySelector('.brain').classList.toggle('has-music', show);
+    if (!show) { $('music').innerHTML = ''; return; }
+    const pill = $('music-status');
+    pill.textContent = p.fallback ? 'Search links' : 'On Spotify';
+    pill.className = `music-pill ${p.fallback ? 'fallback' : ''}`;
+    const songs = p.songs || [];
+    const rows = songs.slice(-6).reverse().map((s) => {
+      const fresh = before.length && !before.some((b) => songKey(b) === songKey(s)) && !instant;
+      return `<div class="song ${fresh ? 'new' : ''}"><div><b>${esc(s.title)}</b><span>${esc(s.artist)}</span></div>${avatar(s.addedBy || 'PLEC', 24)}</div>`;
+    }).join('');
+    const vetoes = (p.vetoes || []).length ? `<div class="vetoes">${p.vetoes.map((v) => `<span>Vetoed: ${esc(v)}</span>`).join('')}</div>` : '';
+    $('music').innerHTML = `<div class="music-head"><div class="cover">${NOTE}</div><div><b>${esc(p.name || 'Party playlist')}</b><span>${songs.length} songs · ${totalLength(songs)}</span></div></div>` +
+      `<div class="songs">${rows || '<div class="music-empty">Seeding…</div>'}</div>${vetoes}`;
+    if (before.length && songs.length !== before.length) glow(card);
+  }
+
   /* ---------- The one event handler ---------- */
   function handle(evt, opts = {}) {
     instant = !!opts.instant;
@@ -408,6 +451,7 @@
       case 'pending': S.pending = evt.data; renderBooking(); break;
       case 'booking': onBooking(d); break;
       case 'calendar': onCalendar(d); break;
+      case 'playlist': onPlaylist(d.playlist || {}); break;
       case 'llm_call': if ($('status-main').textContent === STATUS.listening) setAgent('thinking', 1500); break;
       case 'state_reset': reset(); break;
     }
