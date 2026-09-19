@@ -1,0 +1,143 @@
+<!doctype html>
+<!--
+  Self-serve iMessage sign-up. On Photon's shared plans every person is assigned
+  their own number to text, so this page registers the visitor
+  (POST /imessage/signup) and hands them that number with a link that opens
+  Messages. Same look as the chat page, one file, no build step.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Text PLEC on iMessage</title>
+<link rel="icon" href="emblem.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500&family=Livvic:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --brand: #E15543; --brand-600: hsl(5 90% 56%); --brand-50: hsl(5 90% 97%);
+    --navy: #1F3A5F; --ink: #1a1a1a; --muted: #6b6b6b; --faint: #a3a3a3; --page: #f6f4f1;
+    --panel: rgba(255, 255, 255, 0.92); --ring: rgba(0, 0, 0, 0.06); --imessage: #0b84fe;
+    --font-body: "Livvic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-title: "Bricolage Grotesque", "Livvic", ui-sans-serif, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; margin: 0; }
+  body {
+    font-family: var(--font-body); color: var(--ink);
+    background:
+      radial-gradient(60rem 30rem at 15% -10%, hsl(5 90% 63% / 0.16), transparent 60%),
+      radial-gradient(50rem 30rem at 100% 110%, hsl(213 51% 25% / 0.10), transparent 60%),
+      var(--page);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  h1, h2 { font-family: var(--font-title); font-weight: 400; margin: 0; }
+  .panel { width: min(440px, 100%); background: var(--panel); border-radius: 24px; box-shadow: 0 0 0 1px var(--ring), 0 24px 60px -24px rgba(31, 58, 95, 0.35); backdrop-filter: blur(12px); overflow: hidden; }
+  .header { display: flex; align-items: center; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--ring); }
+  .emblem { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-50); display: grid; place-items: center; flex: none; }
+  .emblem img { width: 24px; height: 24px; }
+  .who h1 { font-size: 17px; line-height: 1.2; }
+  .who p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .back { margin-left: auto; font-size: 12px; color: var(--muted); text-decoration: none; padding: 6px 10px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ring); }
+  .back:hover { color: var(--ink); }
+  .body { padding: 20px 18px 18px; }
+  .lead { margin: 0 0 16px; font-size: 14px; line-height: 1.5; color: var(--muted); }
+  label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin: 0 0 6px; }
+  .field { margin: 0 0 14px; }
+  input { width: 100%; font: inherit; font-size: 15px; color: var(--ink); padding: 11px 12px; border: 0; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,.10); outline: none; transition: box-shadow .15s; }
+  input:focus { box-shadow: inset 0 0 0 2px var(--brand-600); }
+  button.primary, a.primary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; font: inherit; font-size: 15px; font-weight: 600; color: #fff; background: var(--brand); border: 0; border-radius: 14px; padding: 13px 16px; cursor: pointer; text-decoration: none; transition: background .15s, transform .05s; }
+  button.primary:hover { background: var(--brand-600); }
+  button.primary:active, a.primary:active { transform: translateY(1px); }
+  button.primary:disabled { background: rgba(0,0,0,.08); color: var(--faint); cursor: default; }
+  a.primary.blue { background: var(--imessage); }
+  .error { margin: 0 0 14px; padding: 10px 12px; border-radius: 12px; background: var(--brand-50); color: #8f2417; font-size: 13px; line-height: 1.4; }
+  .number { font-family: var(--font-title); font-size: 30px; letter-spacing: .01em; text-align: center; margin: 6px 0 4px; color: var(--navy); }
+  .center { text-align: center; }
+  .hint { margin: 12px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); text-align: center; }
+  .copy { display: block; margin: 0 auto 16px; font: inherit; font-size: 12px; color: var(--muted); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .fine { margin: 14px 0 0; text-align: center; font-size: 10px; line-height: 1.4; color: var(--faint); }
+</style>
+</head>
+<body>
+<main class="panel">
+  <div class="header">
+    <div class="emblem"><img src="emblem.svg" alt="PLEC" /></div>
+    <div class="who">
+      <h1>Text PLEC on iMessage</h1>
+      <p>Same agent, right in your Messages app</p>
+    </div>
+    <a class="back" href="./">Web chat</a>
+  </div>
+
+  <div class="body" id="form-view">
+    <p class="lead">Drop your details and you get a number to text. PLEC finds venues, DJs and caterers, quotes exact prices and books, all over iMessage.</p>
+    <p class="error" id="error" role="alert" hidden></p>
+    <form id="form" novalidate>
+      <div class="field"><label for="name">Your name</label><input id="name" name="name" autocomplete="name" required maxlength="80" placeholder="Sam Rivera" /></div>
+      <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required maxlength="120" placeholder="sam@example.com" /></div>
+      <div class="field"><label for="phone">The phone number you use for iMessage</label><input id="phone" name="phone" type="tel" autocomplete="tel" required maxlength="24" placeholder="(215) 555 0123" /></div>
+      <div class="field" id="code-field" hidden><label for="code">Access code</label><input id="code" name="code" autocomplete="off" maxlength="40" /></div>
+      <button class="primary" id="submit" type="submit">Get my number</button>
+    </form>
+    <p class="fine">We use your number only to let the agent text you back. If your iMessage sends from your Apple ID email, use that email above.</p>
+  </div>
+
+  <div class="body" id="done-view" hidden>
+    <p class="lead center" id="done-lead">You are in. Text this number:</p>
+    <p class="number" id="number"></p>
+    <button class="copy" id="copy" type="button">Copy number</button>
+    <a class="primary blue" id="open" href="#">Open Messages</a>
+    <p class="hint">Say anything, like "yo plec, need a spot for 40 in philly on oct 10".</p>
+  </div>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  if (params.has('code')) $('code').value = params.get('code');
+
+  function showError(message) {
+    $('error').textContent = message;
+    $('error').hidden = false;
+  }
+
+  function pretty(number) {
+    const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(number);
+    return m ? `+1 (${m[1]}) ${m[2]}-${m[3]}` : number;
+  }
+
+  $('form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    $('error').hidden = true;
+    const button = $('submit');
+    button.disabled = true;
+    button.textContent = 'Setting you up...';
+    try {
+      const res = await fetch('imessage/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: $('name').value, email: $('email').value, phone: $('phone').value, code: $('code').value }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.status === 403) $('code-field').hidden = false;
+      if (!res.ok) return showError(body.message || 'That did not work. Try again in a minute.');
+      $('number').textContent = pretty(body.number);
+      $('open').href = body.smsUrl;
+      if (body.already) $('done-lead').textContent = 'Welcome back. Your number is still:';
+      $('copy').onclick = async () => {
+        try { await navigator.clipboard.writeText(body.number); $('copy').textContent = 'Copied'; } catch { $('copy').textContent = body.number; }
+      };
+      $('form-view').hidden = true;
+      $('done-view').hidden = false;
+    } catch {
+      showError('Could not reach the agent. Check your connection and try again.');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Get my number';
+    }
+  });
+</script>
+</body>
+</html>

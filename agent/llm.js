@@ -29,6 +29,7 @@ const REQUEST_TIMEOUT_MS = 35_000;
  * @param {Array<object>} [options.tools]  OpenAI function-tool definitions (see plec.js `tools`)
  * @param {number} [options.temperature]
  * @param {string|object} [options.toolChoice]  "auto" (default), "none", "required", or a named tool
+ * @param {number} [options.timeoutMs]  per-call timeout, capped at REQUEST_TIMEOUT_MS; lets the harness fit a call into what is left of the turn budget
  * @returns {Promise<{ text: string, toolCalls: Array<{ id: string, name: string, argumentsJson: string }>, message: object, raw: object }>}
  *   `message` is the assistant message exactly as the provider returned it. Push it onto your
  *   history before you push the tool results, or the next call will be rejected.
@@ -49,6 +50,7 @@ export async function chatCompletion(messages, options = {}) {
   }
   if (options.temperature !== undefined) body.temperature = options.temperature;
 
+  const timeoutMs = Math.max(1_000, Math.min(options.timeoutMs ?? REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS));
   let response;
   try {
     response = await fetch(`${baseUrl}/chat/completions`, {
@@ -58,10 +60,10 @@ export async function chatCompletion(messages, options = {}) {
         Authorization: `Bearer ${apiKey || 'none'}`,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
-    const reason = err?.name === 'TimeoutError' ? `no answer in ${REQUEST_TIMEOUT_MS / 1000}s` : err?.message;
+    const reason = err?.name === 'TimeoutError' ? `no answer in ${Math.round(timeoutMs / 1000)}s` : err?.message;
     throw new LlmError(`Could not reach ${baseUrl}: ${reason}`);
   }
 

@@ -4,9 +4,15 @@
   "type": "module",
   "scripts": {
     "start": "node agent/server.js",
-    "test": "node tests/run.js"
+    "test": "node tests/run.js",
+    "test:unit": "node --test tests/unit.js tests/*.unit.js",
+    "test:integration": "node --test tests/integration.js"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@spectrum-ts/core": "^12.8.0",
+    "@spectrum-ts/imessage": "^12.8.0"
   }
 }

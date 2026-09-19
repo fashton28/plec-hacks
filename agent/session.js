@@ -13,6 +13,13 @@ const sessions = new Map();
 
 /** Sessions idle longer than this are dropped so a long-running server does not grow forever. */
 const IDLE_TTL_MS = 2 * 60 * 60 * 1000;
+/**
+ * An iMessage chat is one long-lived session: a quote at 9pm gets its "yes" the
+ * next morning. Forgetting it after two hours would make the agent greet a
+ * returning person like a stranger, so those sessions live for a week.
+ */
+const IMESSAGE_IDLE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const idleTtl = (id) => (id.startsWith('imessage:') ? IMESSAGE_IDLE_TTL_MS : IDLE_TTL_MS);
 
 function newSession(id) {
   return {
@@ -46,8 +53,42 @@ export function sessionCount() {
 }
 
 function sweep() {
-  const cutoff = Date.now() - IDLE_TTL_MS;
+  const now = Date.now();
   for (const [id, session] of sessions) {
-    if (session.touchedAt < cutoff) sessions.delete(id);
+    if (now - session.touchedAt > idleTtl(id)) sessions.delete(id);
   }
+}
+
+/** sessionId -> the tail of that session's queue. An id with nothing running has no entry. */
+const locks = new Map();
+
+/**
+ * Run `fn` while holding the session's mutex. Callers on one session run one
+ * at a time, first come first served; other sessions are not held up. The lock
+ * is released when `fn` settles, whether it resolves, rejects or throws.
+ *
+ * Both front doors wrap the WHOLE respond() turn in this. A front door that
+ * gives up waiting (its deadline) must still leave the turn inside the lock, so
+ * a slow turn can never interleave its history and state with the next one.
+ *
+ * @template T
+ * @param {string} sessionId
+ * @param {() => T | Promise<T>} fn
+ * @returns {Promise<T>} whatever `fn` returns or throws
+ */
+export function withSessionLock(sessionId, fn) {
+  const ahead = locks.get(sessionId) ?? Promise.resolve();
+  const run = ahead.then(() => fn());
+  // The tail never rejects, so one failed turn does not poison the turns queued behind it.
+  const tail = run.then(() => {}, () => {});
+  locks.set(sessionId, tail);
+  tail.then(() => {
+    if (locks.get(sessionId) === tail) locks.delete(sessionId);
+  });
+  return run;
+}
+
+/** How many sessions have a turn running or queued. */
+export function sessionLockCount() {
+  return locks.size;
 }

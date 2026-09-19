@@ -28,10 +28,15 @@
  * @property {number} rating
  * @property {number} reviewCount
  * @property {{ min: number, max: number }} [capacity]   venues always; some services
- * @property {{ model: 'hourly'|'flat'|'perGuest', rateCents: number, minHours?: number, cleaningFeeCents?: number }} pricing
+ * @property {{ model: 'hourly'|'flat'|'perGuest', rateCents: number, minHours?: number, maxHours?: number, cleaningFeeCents?: number, peak?: { days: string[], rateCents: number } }} pricing
  * @property {{ start: string, end: string }} [openHours]   venues only, "HH:MM"
  * @property {string[]} blackoutDates     "YYYY-MM-DD"
  * @property {boolean} instantBook        false means request-to-book: the host must approve
+ * @property {'flexible'|'moderate'|'strict'} [cancellationPolicy]   always present on GET /listings/:id
+ * @property {string[]} [closedDays]      weekdays the listing does not book, "mon" to "sun"
+ * @property {number} [leadTimeDays]      minimum notice in days
+ * @property {string} [curfew]            "HH:MM", amplified sound off
+ * @property {'byob'|'in_house_only'|'dry'} [alcoholPolicy]
  * @property {string[]} [amenities]
  * @property {Package[]} [packages]
  * @property {string} [mapUrl]            on GET /listings/:id only
@@ -57,7 +62,7 @@
  * @property {string} ref                 "BK-1001", "BK-1002", ... per team
  * @property {string} listingId
  * @property {string} listingName
- * @property {'confirmed'|'requested'|'cancelled'} status
+ * @property {'pending_payment'|'confirmed'|'requested'|'cancelled'} status
  * @property {string} date
  * @property {string} startTime
  * @property {string} endTime
@@ -70,6 +75,7 @@
  * @property {number} serviceFeeCents
  * @property {number} totalCents
  * @property {number|null} refundCents    set once cancelled
+ * @property {{ sessionId: string, url: string, status: 'unpaid'|'paid', amountCents: number, expiresAt: string, paidAt: string|null }|null} payment   null at request-to-book listings
  * @property {string} createdAt
  * @property {string} updatedAt
  */
@@ -94,7 +100,8 @@ const REQUEST_TIMEOUT_MS = 15_000;
 /**
  * Build a client. Options default to the environment so `createPlecClient()`
  * with no arguments is the normal call.
- * @param {{ baseUrl?: string, key?: string, fetchImpl?: typeof fetch }} [options]
+ * @param {{ baseUrl?: string, key?: string, fetchImpl?: typeof fetch, timeoutMs?: number }} [options]
+ *   `timeoutMs` can only shorten the per-request timeout, never extend it.
  */
 export function createPlecClient(options = {}) {
   const config = () => ({
@@ -122,7 +129,7 @@ export function createPlecClient(options = {}) {
           ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(Math.max(1, Math.min(REQUEST_TIMEOUT_MS, options.timeoutMs ?? REQUEST_TIMEOUT_MS))),
       });
     } catch (err) {
       const reason = err?.name === 'TimeoutError' ? 'timed out' : err?.message;
@@ -214,6 +221,9 @@ export function createPlecClient(options = {}) {
 
     /** Wipe this team's bookings. The test runner does this before every scenario. */
     reset: () => request('POST', '/reset'),
+
+    /** The same client with a tighter per-request timeout, for a caller that is itself on a deadline. */
+    withTimeout: (timeoutMs) => createPlecClient({ ...options, timeoutMs }),
   };
 }
 
@@ -232,7 +242,7 @@ export const tools = [
     function: {
       name: 'search_listings',
       description:
-        'Search venues and services. Use only once you know the city and, for venues, the headcount. Returns up to 10 compact results with id, name, capacity, pricing and photos. Pass the headcount as guests: only listings whose capacity range contains it come back. city must be "Philadelphia", "New York" or "Washington".',
+        'Search venues and services. To browse options, use it once you know the city and, for venues, the headcount. To look up one listing by name, pass only q. Returns up to 10 compact results with id, name, capacity, pricing and photos. Pass the headcount as guests: only listings whose capacity range contains it come back. city must be "Philadelphia", "New York" or "Washington".',
       parameters: {
         type: 'object',
         properties: {
@@ -366,8 +376,13 @@ export const tools = [
  * Route a model's tool call to the client. Returns the API's JSON on success
  * and { error, message } on a PlecError, so the model always gets something
  * it can explain to the user instead of an exception unwinding the turn.
+ * @param {string} name
+ * @param {object} args
+ * @param {{ client?: ReturnType<typeof createPlecClient>, timeoutMs?: number }} [options]
+ *   `timeoutMs` is what the caller has left; a request gives up after that or 15s, whichever is sooner.
  */
-export async function callTool(name, args, client = plec) {
+export async function callTool(name, args, { client: base = plec, timeoutMs } = {}) {
+  const client = timeoutMs === undefined ? base : base.withTimeout(timeoutMs);
   try {
     switch (name) {
       case 'search_listings':

@@ -13,11 +13,15 @@
 
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { respond } from './agent.js';
-import { getSession, resetSession } from './session.js';
+import { loadDotEnv } from './env.js';
+import { startIMessage } from './imessage.js';
+import { clampText } from './guards.js';
+import { signup } from './signup.js';
+import { getSession, resetSession, withSessionLock } from './session.js';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 loadDotEnv(join(ROOT, '.env'));
@@ -40,6 +44,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true });
     if (req.method === 'POST' && url.pathname === '/agent/messages') return await handleMessage(req, res);
     if (req.method === 'POST' && url.pathname === '/agent/reset') return await handleReset(req, res);
+    if (req.method === 'POST' && url.pathname === '/imessage/signup') return await handleSignup(req, res);
     if (req.method === 'GET' || req.method === 'HEAD') return await serveStatic(url.pathname, res, req.method === 'HEAD');
     return json(res, 404, { error: 'not_found', message: `No route ${req.method} ${url.pathname}` });
   } catch (err) {
@@ -52,14 +57,14 @@ async function handleMessage(req, res) {
   const body = await readJson(req);
   if (!body) return json(res, 400, { error: 'bad_json', message: 'Send a JSON body: { "sessionId": "...", "text": "..." }' });
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
-  const text = typeof body.text === 'string' ? body.text.trim() : '';
+  const text = typeof body.text === 'string' ? clampText(body.text.trim()) : '';
   if (!sessionId) return json(res, 400, { error: 'session_required', message: 'sessionId must be a non-empty string' });
   if (!text) return json(res, 400, { error: 'text_required', message: 'text must be a non-empty string' });
 
   const startedAt = Date.now();
   let parts;
   try {
-    parts = await withDeadline(respond({ sessionId, text, session: getSession(sessionId) }), TURN_DEADLINE_MS);
+    parts = await runTurn(sessionId, text);
   } catch (err) {
     const timedOut = err?.code === 'DEADLINE';
     console.error(`[turn ${sessionId.slice(0, 8)}] failed after ${Date.now() - startedAt}ms:`, timedOut ? err.message : err);
@@ -81,8 +86,18 @@ async function handleReset(req, res) {
   const body = await readJson(req);
   const sessionId = typeof body?.sessionId === 'string' ? body.sessionId.trim() : '';
   if (!sessionId) return json(res, 400, { error: 'session_required', message: 'sessionId must be a non-empty string' });
-  resetSession(sessionId);
+  // Behind the lock, so a reset never pulls the session out from under a turn that is still writing to it.
+  await withSessionLock(sessionId, () => resetSession(sessionId));
   return json(res, 200, { ok: true });
+}
+
+/** Self-serve iMessage sign-up (agent/signup.js). Behind a tunnel the caller's address is in a forwarding header. */
+async function handleSignup(req, res) {
+  const body = await readJson(req);
+  if (!body) return json(res, 400, { error: 'bad_json', message: 'Send a JSON body: { "name": "...", "email": "...", "phone": "..." }' });
+  const forwarded = String(req.headers['cf-connecting-ip'] ?? req.headers['x-forwarded-for'] ?? '').split(',')[0].trim();
+  const result = await signup(body, { ip: forwarded || req.socket.remoteAddress || 'unknown' });
+  return json(res, result.status, result.body);
 }
 
 /** Serves chat/ read-only; "/" is the chat page. Path is normalised so ".." cannot escape. */
@@ -123,6 +138,22 @@ function readJson(req) {
   });
 }
 
+/**
+ * One turn, one at a time per session. The deadline starts when the turn
+ * starts, not while it waits its turn, and the lock stays held until respond()
+ * has really finished: giving up on a slow turn must not let the next one run
+ * on top of it.
+ */
+function runTurn(sessionId, text) {
+  return new Promise((resolve, reject) => {
+    withSessionLock(sessionId, () => {
+      const turn = respond({ sessionId, text, session: getSession(sessionId) });
+      withDeadline(turn, TURN_DEADLINE_MS).then(resolve, reject);
+      return turn;
+    }).catch(reject);
+  });
+}
+
 function withDeadline(promise, ms) {
   let timer;
   const deadline = new Promise((_, reject) => {
@@ -145,19 +176,9 @@ function end(res, status) {
   res.end();
 }
 
-/** Tiny .env reader: KEY=value lines, # comments, optional quotes. Never overrides a real env var. */
-function loadDotEnv(path) {
-  if (!existsSync(path)) return;
-  for (const line of readFileSync(path, 'utf8').split('\n')) {
-    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-    if (!match || line.trim().startsWith('#')) continue;
-    const value = match[2].replace(/^(['"])(.*)\1$/, '$2');
-    if (process.env[match[1]] === undefined) process.env[match[1]] = value;
-  }
-}
-
 server.listen(PORT, () => {
   console.log(`PLEC agent listening on http://localhost:${PORT}`);
   console.log(`Chat page:   http://localhost:${PORT}/`);
   console.log(`Sandbox:     ${process.env.PLEC_SANDBOX_URL || 'https://api.plec.ai/hackathon/sandbox'}  key ${process.env.PLEC_SANDBOX_KEY ? 'set' : 'MISSING (copy it from https://plec.ai/hack/dashboard into .env)'}`);
+  startIMessage();
 });
