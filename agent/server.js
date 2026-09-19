@@ -25,6 +25,7 @@ import { signup } from './signup.js';
 import { openEventStream, stage } from './stage.js';
 import { addRsvp, getCalendarLink, getPage, googleCalendarUrl, icsFile, pageEvent, renderPage } from './eventpage.js';
 import { noteRequestOrigin, publicOrigin } from './origin.js';
+import { bookingsView } from './bookings-view.js';
 import { authorizeUrl, exchangeCode, redirectUri, spotifyConfigured, spotifyReady } from './spotify.js';
 import { saveDotEnvValue } from './env.js';
 import { randomBytes } from 'node:crypto';
@@ -39,7 +40,7 @@ const TURN_DEADLINE_MS = 40_000;
 const MAX_BODY_BYTES = 64 * 1024;
 const CHAT_DIR = join(ROOT, 'chat');
 /** Addresses that moved, plus the ones people guess. The chat is the front page; the big-screen view is /stage.html. */
-const MOVED = { '/chat': '/', '/chat/': '/', '/chat.html': '/', '/stage': '/stage.html', '/stage/': '/stage.html', '/imessage': '/imessage.html' };
+const MOVED = { '/chat': '/', '/chat/': '/', '/chat.html': '/', '/stage': '/stage.html', '/stage/': '/stage.html', '/imessage': '/imessage.html', '/bookings': '/bookings.html' };
 const MIME = { '.html': 'text/html; charset=utf-8', '.svg': 'image/svg+xml', '.css': 'text/css', '.js': 'text/javascript', '.png': 'image/png' };
 
 const server = createServer(async (req, res) => {
@@ -53,6 +54,7 @@ const server = createServer(async (req, res) => {
     noteRequestOrigin(req.headers);
     if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true });
     if (req.method === 'GET' && url.pathname === '/events') return openEventStream(req, res);
+    if (req.method === 'GET' && url.pathname === '/api/bookings') { const view = await bookingsView(); return json(res, view.status, view.body); }
     if (req.method === 'GET' && /^\/[ec]\//.test(url.pathname)) return serveEventLink(url.pathname, res);
     if (req.method === 'GET' && url.pathname.startsWith('/spotify/')) return await handleSpotify(req, url, res);
     if (req.method === 'POST' && url.pathname === '/agent/messages') return await handleMessage(req, res);

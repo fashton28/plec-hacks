@@ -1,0 +1,97 @@
+<!doctype html>
+<!--
+  All bookings: every booking this agent has made, on any channel (web chat, iMessage), read from GET /api/bookings.
+  Public page, so it shows the event and its status, never the guest or a payment link. Refreshes itself.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>PLEC Concierge, all bookings</title>
+<link rel="icon" href="emblem.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600&family=Livvic:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="stage.css" />
+<style>
+  .page { max-width: 980px; margin: 0 auto; }
+  .page .topbar { max-width: none; }
+  .intro { margin: 0 0 18px; }
+  .intro h1 { font-size: clamp(30px, 4vw, 46px); line-height: 1.05; letter-spacing: -0.02em; color: var(--navy); }
+  .intro p { margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: var(--muted); max-width: 60ch; }
+  .counts { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 18px; }
+  .count { padding: 12px 18px; border-radius: 18px; background: var(--panel); box-shadow: 0 0 0 1px var(--ring); min-width: 120px; }
+  .count b { display: block; font-family: var(--font-title); font-weight: 500; font-size: 30px; line-height: 1; color: var(--navy); }
+  .count span { font-size: 12px; color: var(--muted); }
+  .list { display: grid; gap: 14px; }
+  .list .ticket.is-cancelled { opacity: .62; }
+  .list .ticket .shot { min-height: 170px; }
+  .empty { padding: 28px 24px; border-radius: var(--r-lg); color: var(--muted); font-size: 15px; line-height: 1.5; }
+  .updated { margin: 16px 0 0; text-align: center; font-size: 12px; color: var(--faint); }
+  .nav { margin-left: auto; display: flex; gap: 8px; }
+  .nav a { font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; padding: 8px 14px; border-radius: var(--pill); background: var(--panel); box-shadow: 0 0 0 1px var(--ring); }
+  .nav a:hover { color: var(--ink); }
+  .nav a.primary { background: var(--brand); color: #fff; box-shadow: none; }
+</style>
+</head>
+<body>
+<div class="wash" aria-hidden="true"></div>
+<div class="page">
+  <header class="topbar">
+    <a class="brand" href="./"><span class="emblem"><img src="emblem.svg" alt="" /></span><span class="brand-text"><b>PLEC Concierge</b><small>All bookings</small></span></a>
+    <nav class="nav"><a href="stage.html">Big screen</a><a class="primary" href="./">Chat with PLEC</a></nav>
+  </header>
+
+  <section class="intro">
+    <h1>Everything PLEC has booked</h1>
+    <p>Bookings from the web chat and from iMessage land in the same place. This page shows the event and where it stands. It never shows who booked or a payment link.</p>
+  </section>
+
+  <section class="counts" id="counts" aria-live="polite"></section>
+  <section class="list" id="list"><div class="card empty">Loading the bookings...</div></section>
+  <p class="updated" id="updated"></p>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const prettyDate = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' }) : String(d ?? ''));
+  const hr = (t) => { const [h, m] = String(t).split(':').map(Number); return (h % 12 || 12) + ':' + String(m || 0).padStart(2, '0') + (h >= 12 ? 'pm' : 'am'); };
+  const STATE = { pending_payment: 'Waiting on payment', requested: 'Waiting on the host', confirmed: 'Confirmed', cancelled: 'Cancelled' };
+  const NOTE = { pending_payment: 'Held, not confirmed, until the guest pays.', requested: 'The host still has to approve. Nothing is due yet.', confirmed: 'Paid and confirmed.' };
+  let lastHtml = '';
+
+  function draw(data) {
+    const c = data.counts;
+    $('counts').innerHTML = [[c.live, 'live'], [c.confirmed, 'confirmed'], [c.awaitingPayment, 'waiting on payment'], [c.awaitingHost, 'waiting on the host'], [c.cancelled, 'cancelled']]
+      .map(([n, label]) => '<div class="count"><b class="num">' + n + '</b><span>' + label + '</span></div>').join('');
+    const html = data.bookings.length ? data.bookings.map((b) => {
+      const note = b.status === 'cancelled' ? (b.refund ? 'Refund: ' + b.refund + '.' : 'Cancelled.') : (NOTE[b.status] || '');
+      return '<article class="card ticket' + (b.status === 'cancelled' ? ' is-cancelled' : '') + '"><div class="shot" style="background-image:url(&quot;' + esc(b.photoUrl) + '&quot;)"></div><div class="stub">' +
+        '<div class="booked-row"><span class="state s-' + esc(b.status) + '">' + esc(b.paid && b.status !== 'cancelled' ? 'Paid' : STATE[b.status] || b.status) + '</span><span class="code">' + esc(b.ref) + '</span></div>' +
+        '<div class="venue-name">' + esc(b.venue) + '</div>' +
+        '<div class="kv"><div><small>Date</small><b>' + esc(prettyDate(b.date)) + '</b></div><div><small>Time</small><b>' + esc(hr(b.startTime) + ' to ' + hr(b.endTime)) + '</b></div>' +
+        '<div><small>Guests</small><b>' + esc(b.guests) + '</b></div><div><small>Total</small><b class="num">' + esc(b.total) + '</b></div></div>' +
+        '<p class="note">' + esc(note) + '</p></div></article>';
+    }).join('') : '<div class="card empty">Nothing booked yet. Ask PLEC in the chat or over iMessage, and it shows up here.</div>';
+    if (html !== lastHtml) { $('list').innerHTML = html; lastHtml = html; }
+    $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString() + '. Refreshes every 10 seconds.';
+  }
+
+  async function load() {
+    try {
+      const res = await fetch('api/bookings', { cache: 'no-store' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.message || 'HTTP ' + res.status);
+      draw(body);
+    } catch (err) {
+      $('updated').textContent = 'Could not refresh just now: ' + (err && err.message || err) + '. Trying again shortly.';
+    }
+  }
+  load();
+  setInterval(() => { if (!document.hidden) load(); }, 10000);
+})();
+</script>
+</body>
+</html>
